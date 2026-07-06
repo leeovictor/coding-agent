@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runAgent } from "../src/agent.js";
-import { callApi, OPENROUTER_MODEL } from "../src/openrouter.js";
+import { callApi, currentModel } from "../src/openrouter.js";
 import { getToolSchema, executeTool } from "../src/tools/index.js";
 import { createLogger } from "../src/logger.js";
 
@@ -47,8 +47,8 @@ describe("integração — fluxo completo mockado", () => {
   });
 
   it("modelo configurado é uma string não-vazia", () => {
-    expect(typeof OPENROUTER_MODEL).toBe("string");
-    expect(OPENROUTER_MODEL.length).toBeGreaterThan(0);
+    expect(typeof currentModel).toBe("string");
+    expect(currentModel.length).toBeGreaterThan(0);
   });
 
   it("tarefa simples sem tools retorna texto e conclui", async () => {

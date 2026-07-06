@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toolRegistry, getToolSchema, executeTool, isSensitive } from "../src/tools/index.js";
+import { toolRegistry, getToolSchema, executeTool, isSensitive, shouldConfirm, summarizeTool } from "../src/tools/index.js";
 
 describe("tools registry", () => {
   it("tem exatamente 3 tools", () => {
@@ -49,5 +49,60 @@ describe("tools registry", () => {
   it("executeTool nunca lança — captura exceção do executor", () => {
     const out = executeTool("read_file", { path: "/caminho/que/nao/existe/xxx" });
     expect(out).toMatch(/ERRO/);
+  });
+});
+
+describe("shouldConfirm", () => {
+  it("read_file nunca exige confirmação", () => {
+    expect(shouldConfirm("read_file", { path: "/etc/shadow" })).toBe(false);
+  });
+
+  it("write_file sempre exige confirmação", () => {
+    expect(shouldConfirm("write_file", { path: "a", content: "x" })).toBe(true);
+  });
+
+  it("run_bash com comando permitido não exige confirmação", () => {
+    expect(shouldConfirm("run_bash", { command: "ls -la" })).toBe(false);
+    expect(shouldConfirm("run_bash", { command: "git status" })).toBe(false);
+    expect(shouldConfirm("run_bash", { command: "echo hello" })).toBe(false);
+  });
+
+  it("run_bash com comando perigoso exige confirmação", () => {
+    expect(shouldConfirm("run_bash", { command: "rm file" })).toBe(true);
+    expect(shouldConfirm("run_bash", { command: "git push" })).toBe(true);
+    expect(shouldConfirm("run_bash", { command: "ls; rm file" })).toBe(true);
+  });
+
+  it("tool inexistente nunca exige confirmação", () => {
+    expect(shouldConfirm("inexistente", {})).toBe(false);
+  });
+});
+
+describe("summarizeTool", () => {
+  it("read_file retorna path", () => {
+    expect(summarizeTool("read_file", { path: "a.txt" })).toBe("a.txt");
+  });
+
+  it("write_file retorna path", () => {
+    expect(summarizeTool("write_file", { path: "b.js", content: "..." })).toBe("b.js");
+  });
+
+  it("run_bash retorna command", () => {
+    expect(summarizeTool("run_bash", { command: "ls -la" })).toBe("ls -la");
+  });
+
+  it("run_bash trunca command longo", () => {
+    const long = "x".repeat(100);
+    const out = summarizeTool("run_bash", { command: long });
+    expect(out).toHaveLength(81);
+    expect(out).toMatch(/\u2026$/);
+  });
+
+  it("tool desconhecida usa fallback JSON.stringify", () => {
+    expect(summarizeTool("unknown", { a: 1 })).toBe('{"a":1}');
+  });
+
+  it("tool desconhecida com string curta usa fallback string", () => {
+    expect(summarizeTool("unknown", { path: "foo.txt", content: "bar" })).toBe("foo.txt");
   });
 });

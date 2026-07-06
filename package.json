@@ -2,6 +2,9 @@
   "name": "cli-agent",
   "version": "0.1.0",
   "type": "module",
+  "bin": {
+    "cli-agent": "./src/cli.js"
+  },
   "scripts": {
     "test": "vitest run --exclude test/integration.test.js",
     "test:watch": "vitest",
@@ -10,5 +13,8 @@
   },
   "devDependencies": {
     "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.5.2"
   }
 }

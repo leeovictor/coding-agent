@@ -197,4 +197,227 @@ describe("runAgent", () => {
     });
     expect(confirm).not.toHaveBeenCalled();
   });
+
+  it("não chama confirm para run_bash com comando allow-listed", async () => {
+    const callApi = queueResponses(
+      toolResponse([makeToolCall("1", "run_bash", { command: "ls -la" })]),
+      textResponse("feito"),
+    );
+    const confirm = vi.fn(async () => true);
+    const executeTool = vi.fn(() => "(saída)");
+    const result = await runAgent({
+      task: "x",
+      tools: [],
+      callApi,
+      executeTool,
+      confirm,
+    });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(executeTool).toHaveBeenCalledWith("run_bash", { command: "ls -la" });
+    expect(result.reason).toBe("concluido");
+  });
+
+  it("chama confirm para run_bash com comando perigoso", async () => {
+    const callApi = queueResponses(
+      toolResponse([makeToolCall("1", "run_bash", { command: "rm important" })]),
+      textResponse("feito"),
+    );
+    const confirm = vi.fn(async () => false);
+    const executeTool = vi.fn(() => "executado");
+    await runAgent({
+      task: "x",
+      tools: [],
+      callApi,
+      executeTool,
+      confirm,
+    });
+    expect(confirm).toHaveBeenCalledWith("run_bash", { command: "rm important" });
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it("não emite tool_confirmation para bash allow-listed", async () => {
+    const callApi = queueResponses(
+      toolResponse([makeToolCall("1", "run_bash", { command: "pwd" })]),
+      textResponse("feito"),
+    );
+    const events = [];
+    await runAgent({
+      task: "x",
+      tools: [],
+      callApi,
+      executeTool: () => "r",
+      confirm: () => true,
+      onEvent: (event, data) => events.push({ event, data }),
+    });
+    const confirmEvents = events.filter((e) => e.event === "tool_confirmation");
+    expect(confirmEvents).toHaveLength(0);
+    const execEvents = events.filter((e) => e.event === "tool_execution");
+    expect(execEvents).toHaveLength(1);
+  });
+
+  it("emite tool_confirmation para write_file (ainda sensível)", async () => {
+    const callApi = queueResponses(
+      toolResponse([makeToolCall("1", "write_file", { path: "a", content: "x" })]),
+      textResponse("feito"),
+    );
+    const events = [];
+    await runAgent({
+      task: "x",
+      tools: [],
+      callApi,
+      executeTool: () => "ok",
+      confirm: () => true,
+      onEvent: (event, data) => events.push({ event, data }),
+    });
+    const confirmEvents = events.filter((e) => e.event === "tool_confirmation");
+    expect(confirmEvents).toHaveLength(1);
+    expect(confirmEvents[0].data.decisao).toBe(true);
+  });
+
+  it("streaming: emite token events com content", async () => {
+    function streamingCallApi() {
+      const chunks = [
+        { choices: [{ delta: { content: "Hello" } }] },
+        { choices: [{ delta: { content: " world" } }] },
+        { choices: [{ delta: {} }, { delta: {}, finish_reason: "stop" }] },
+      ];
+      return {
+        [Symbol.asyncIterator]() {
+          let i = 0;
+          return {
+            async next() {
+              if (i >= chunks.length) return { done: true, value: undefined };
+              return { done: false, value: chunks[i++] };
+            },
+          };
+        },
+      };
+    }
+
+    const callApi = vi.fn(async () => streamingCallApi());
+    const events = [];
+    const result = await runAgent({
+      task: "test",
+      tools: [],
+      callApi,
+      executeTool: vi.fn(),
+      stream: true,
+      onEvent: (event, data) => events.push({ event, data }),
+    });
+    const tokenEvents = events.filter((e) => e.event === "token");
+    expect(tokenEvents).toHaveLength(2);
+    expect(tokenEvents[0].data).toEqual({ type: "content", text: "Hello" });
+    expect(tokenEvents[1].data).toEqual({ type: "content", text: " world" });
+    expect(result.finalContent).toBe("Hello world");
+  });
+
+  it("streaming: emite token events com reasoning", async () => {
+    function streamingCallApi() {
+      const chunks = [
+        { choices: [{ delta: { reasoning: "Let me think" } }] },
+        { choices: [{ delta: { reasoning: " about it" } }] },
+        { choices: [{ delta: { content: "Answer" } }] },
+        { choices: [{ delta: {} }] },
+      ];
+      return {
+        [Symbol.asyncIterator]() {
+          let i = 0;
+          return {
+            async next() {
+              if (i >= chunks.length) return { done: true, value: undefined };
+              return { done: false, value: chunks[i++] };
+            },
+          };
+        },
+      };
+    }
+
+    const callApi = vi.fn(async () => streamingCallApi());
+    const events = [];
+    await runAgent({
+      task: "test",
+      tools: [],
+      callApi,
+      executeTool: vi.fn(),
+      stream: true,
+      onEvent: (event, data) => events.push({ event, data }),
+    });
+    const reasoningEvents = events.filter((e) => e.event === "token" && e.data.type === "reasoning");
+    expect(reasoningEvents).toHaveLength(2);
+    expect(reasoningEvents[0].data.text).toBe("Let me think");
+    expect(reasoningEvents[1].data.text).toBe(" about it");
+  });
+
+  it("streaming: tool_calls são montados e executados", async () => {
+    const toolCallChunks = [
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "read_file", arguments: "" } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"path":"' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: 'a.txt"}' } }] } }] },
+      { choices: [{ delta: {} }] },
+    ];
+    const textChunks = [
+      { choices: [{ delta: { content: "done" } }] },
+      { choices: [{ delta: {} }] },
+    ];
+
+    function makeIter(arr) {
+      let i = 0;
+      return {
+        [Symbol.asyncIterator]() {
+          return {
+            async next() {
+              if (i >= arr.length) return { done: true, value: undefined };
+              return { done: false, value: arr[i++] };
+            },
+          };
+        },
+      };
+    }
+
+    let callCount = 0;
+    const callApi = vi.fn(async () => {
+      callCount++;
+      return callCount === 1 ? makeIter(toolCallChunks) : makeIter(textChunks);
+    });
+
+    const executeTool = vi.fn(() => "content");
+    const result = await runAgent({
+      task: "read file",
+      tools: [],
+      callApi,
+      executeTool,
+      stream: true,
+      maxIterations: 3,
+    });
+    expect(executeTool).toHaveBeenCalledWith("read_file", { path: "a.txt" });
+    expect(result.reason).toBe("concluido");
+  });
+
+  it("usa messages pré-definidas em vez de criar", async () => {
+    const callApi = queueResponses(textResponse("ok"));
+    const preMessages = [
+      { role: "system", content: "custom system" },
+      { role: "user", content: "custom user" },
+    ];
+    const result = await runAgent({
+      messages: preMessages,
+      tools: [],
+      callApi,
+      executeTool: vi.fn(),
+    });
+    expect(result.reason).toBe("concluido");
+    expect(result.messages[0]).toEqual({ role: "system", content: "custom system" });
+  });
+
+  it("sem messages cria do zero com task", async () => {
+    const callApi = queueResponses(textResponse("ok"));
+    const result = await runAgent({
+      task: "my task",
+      tools: [],
+      callApi,
+      executeTool: vi.fn(),
+    });
+    expect(result.messages[0].role).toBe("system");
+    expect(result.messages[1]).toEqual({ role: "user", content: "my task" });
+  });
 });

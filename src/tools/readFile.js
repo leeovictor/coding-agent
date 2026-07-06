@@ -19,6 +19,10 @@ export const schema = {
 
 export const sensitive = false;
 
+export function summarize(args) {
+  return args.path;
+}
+
 /**
  * @param {{path: string}} args
  * @returns {string} conteúdo ou mensagem de erro

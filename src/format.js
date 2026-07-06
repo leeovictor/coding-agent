@@ -1,3 +1,6 @@
+import { emitKeypressEvents } from "node:readline";
+import { summarizeTool } from "./tools/index.js";
+
 const PREVIEW_LEN = 500;
 
 function preview(s, len = PREVIEW_LEN) {
@@ -9,16 +12,25 @@ function preview(s, len = PREVIEW_LEN) {
 export function formatDecision({ iteracao, tool, args, error }) {
   const argsStr = error
     ? `(args inv\u00e1lidos: ${error})`
-    : JSON.stringify(args);
+    : summarizeTool(tool, args);
   return `[iter ${iteracao}] \u2192 ${tool} ${argsStr}`;
 }
 
 export function formatToolResult({ iteracao, tool, resultado, duration_ms }) {
+  if (tool === "read_file") {
+    return `[iter ${iteracao}] \u2190 ${tool} (${duration_ms}ms): [${String(resultado ?? "").length} chars]`;
+  }
   return `[iter ${iteracao}] \u2190 ${tool} (${duration_ms}ms): ${preview(resultado)}`;
 }
 
 export function formatConfirmation({ iteracao, tool, args }) {
-  return `[iter ${iteracao}] ? confirmar ${tool} ${JSON.stringify(args)} (y/n):`;
+  if (tool === "write_file") {
+    return `${RED}? Write file ${args.path} (y/n):${RESET}`;
+  }
+  if (tool === "run_bash") {
+    return `${RED}? Run bash ${args.command} (y/n):${RESET}`;
+  }
+  return `${RED}[iter ${iteracao}] ? confirmar ${tool} ${JSON.stringify(args)} (y/n):${RESET}`;
 }
 
 export function formatFinal(content) {
@@ -31,24 +43,245 @@ export function formatLoopEnd({ motivo, iteracoes }) {
   return `\n[loop encerrado: ${motivo}]`;
 }
 
-export function createConsoleEventHandler({ log = console.log } = {}) {
-  return (event, data) => {
+const GRAY = "\x1b[90m";
+const ORANGE = "\x1b[38;5;208m";
+const RED = "\x1b[31m";
+const RESET = "\x1b[0m";
+const SPINNER_FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
+const BASH_PREVIEW_LEN = 2000;
+
+export function formatBashOutput({ resultado, duration_ms }) {
+  const text = String(resultado ?? "");
+  const isError = text.startsWith("ERRO");
+  const borderColor = isError ? RED : GRAY;
+  const contentColor = isError ? RED : "";
+  const label = isError ? "output (error)" : "output";
+  const headerText = `${label} (${duration_ms ?? "?"}ms)`;
+  const WIDTH = 60;
+  const previewed = preview(text, BASH_PREVIEW_LEN);
+  const lines = previewed.split("\n");
+  const header = `${borderColor}┌─ ${headerText} ${"─".repeat(Math.max(2, WIDTH - headerText.length - 4))}${RESET}`;
+  const body = lines.map((l) => `${borderColor}│${RESET} ${contentColor}${l}${RESET}`).join("\n");
+  const footer = `${borderColor}└${"─".repeat(WIDTH)}${RESET}`;
+  return `${header}\n${body}\n${footer}`;
+}
+
+export function createConsoleEventHandler({ log = console.log, stdout = process.stdout, stdin } = {}) {
+  let reasoningActive = false;
+  let contentStreamed = false;
+  let thinkingActive = false;
+  let thinkingTimer = null;
+  let frameIdx = 0;
+  let prevSection = "none";
+  let reasoningBuffer = "";
+  let showReasoning = false;
+  let reasoningHintShown = false;
+  let thinkingLabel = "Pensando...";
+  let inputAttached = false;
+  let reasoningStart = null;
+
+  function sectionBreak(next) {
+    if (prevSection !== "none" && prevSection !== next) {
+      stdout.write("\n");
+      if (prevSection === "content") stdout.write("\n");
+    }
+    prevSection = next;
+  }
+
+  function startThinking() {
+    if (thinkingActive) return;
+    thinkingLabel = "Pensando...";
+    reasoningHintShown = false;
+    stdout.write(`${ORANGE}\u280b ${thinkingLabel}${RESET}`);
+    thinkingActive = true;
+    prevSection = "thinking";
+    if (stdout.isTTY !== false) {
+      thinkingTimer = setInterval(() => {
+        frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
+        stdout.write(`\r${ORANGE}${SPINNER_FRAMES[frameIdx]} ${thinkingLabel}${RESET}`);
+      }, 80);
+    }
+  }
+
+  function clearThinking() {
+    if (thinkingTimer) {
+      clearInterval(thinkingTimer);
+      thinkingTimer = null;
+    }
+    if (thinkingActive) {
+      stdout.write(`\r\x1b[2K\r${RESET}`);
+      thinkingActive = false;
+    }
+  }
+
+  function revealReasoning() {
+    if (showReasoning) return;
+    showReasoning = true;
+    clearThinking();
+    if (reasoningBuffer) {
+      sectionBreak("reasoning");
+      stdout.write(`${ORANGE}\u203a `);
+      const parts = reasoningBuffer.split("\n");
+      for (let i = 0; i < parts.length; i++) {
+        if (i > 0) {
+          stdout.write(`${RESET}\n${ORANGE}\u203a `);
+        }
+        if (parts[i]) {
+          stdout.write(parts[i]);
+        }
+      }
+      reasoningActive = true;
+    }
+  }
+
+  function onKeypress(str, key) {
+    if (key.name === "r") {
+      revealReasoning();
+    } else if (key.ctrl && key.name === "c") {
+      process.exit(1);
+    }
+  }
+
+  function attachInput() {
+    if (!stdin || !stdin.isTTY || inputAttached) return;
+    inputAttached = true;
+    emitKeypressEvents(stdin);
+    stdin.setRawMode(true);
+    stdin.on("keypress", onKeypress);
+  }
+
+  function detachInput() {
+    if (!inputAttached) return;
+    inputAttached = false;
+    stdin.removeListener("keypress", onKeypress);
+    stdin.setRawMode(false);
+  }
+
+  function flushReasoning() {
+    if (reasoningActive) {
+      stdout.write(`${RESET}\n`);
+      reasoningActive = false;
+    }
+  }
+
+  function showReasoningDuration(nextSection) {
+    if (reasoningStart === null) return false;
+    const elapsed = Date.now() - reasoningStart;
+    const secs = (elapsed / 1000).toFixed(1);
+    stdout.write(`${ORANGE}+ Pensou: ${secs}s${RESET}\n\n`);
+    reasoningStart = null;
+    if (nextSection) prevSection = nextSection;
+    return true;
+  }
+
+  function handler(event, data) {
     switch (event) {
+      case "request":
+        reasoningBuffer = "";
+        showReasoning = false;
+        reasoningStart = null;
+        attachInput();
+        stdout.write("\n");
+        startThinking();
+        break;
+      case "token":
+        if (data.type === "reasoning") {
+          reasoningBuffer += data.text;
+          if (reasoningStart === null) reasoningStart = Date.now();
+          if (!showReasoning) {
+            if (!reasoningHintShown && thinkingActive) {
+              thinkingLabel = "Pensando... (r = ver racioc\u00ednio)";
+              stdout.write(`\r${ORANGE}\u280b ${thinkingLabel}${RESET}`);
+              reasoningHintShown = true;
+            }
+          } else {
+            clearThinking();
+            if (!reasoningActive) {
+              sectionBreak("reasoning");
+              stdout.write(`${ORANGE}\u203a `);
+              reasoningActive = true;
+            }
+            const parts = data.text.split("\n");
+            for (let i = 0; i < parts.length; i++) {
+              if (i > 0) {
+                stdout.write(`${RESET}\n${ORANGE}\u203a `);
+              }
+              if (parts[i]) {
+                stdout.write(parts[i]);
+              }
+            }
+          }
+        } else {
+          clearThinking();
+          flushReasoning();
+          if (!showReasoningDuration("content")) sectionBreak("content");
+          contentStreamed = true;
+          stdout.write(data.text);
+        }
+        break;
+      case "tool_preparing":
+        if (data.tool === "write_file") {
+          clearThinking();
+          flushReasoning();
+          if (!showReasoningDuration("content")) sectionBreak("content");
+          stdout.write("Preparando escrita...\n");
+        }
+        break;
       case "tool_decision":
-        log(formatDecision(data));
+        clearThinking();
+        flushReasoning();
+        if (!showReasoningDuration("tool")) sectionBreak("tool");
+        if (data.tool === "read_file") {
+          const path = data.args?.path ?? data.error ?? "?";
+          stdout.write(`${GRAY}-> Read file ${path}${RESET}\n`);
+        } else if (data.tool === "write_file") {
+          const path = data.args?.path ?? data.error ?? "?";
+          stdout.write(`${GRAY}-> Write file ${path}${RESET}\n`);
+        } else if (data.tool === "run_bash") {
+          const cmd = data.args?.command ?? data.error ?? "?";
+          stdout.write(`${GRAY}-> Run bash ${cmd}${RESET}\n`);
+        } else {
+          log(formatDecision(data));
+        }
         break;
       case "tool_execution":
-        log(formatToolResult(data));
+        clearThinking();
+        flushReasoning();
+        if (!showReasoningDuration("tool")) sectionBreak("tool");
+        if (data.tool === "run_bash") {
+          stdout.write(formatBashOutput(data) + "\n");
+        } else if (data.tool !== "read_file" && data.tool !== "write_file") {
+          log(formatToolResult(data));
+        }
         break;
       case "tool_confirmation":
+        clearThinking();
+        flushReasoning();
+        if (!showReasoningDuration("confirmation")) sectionBreak("confirmation");
         log(formatConfirmation(data));
         break;
       case "final_content":
-        log(formatFinal(data.content));
+        clearThinking();
+        flushReasoning();
+        if (!showReasoningDuration("content")) sectionBreak("content");
+        if (!contentStreamed) {
+          log(formatFinal(data.content));
+        }
         break;
       case "loop_end":
+        clearThinking();
+        flushReasoning();
+        showReasoningDuration();
         log(formatLoopEnd(data));
         break;
     }
+  }
+
+  handler.dispose = function dispose() {
+    detachInput();
+    clearThinking();
+    showReasoningDuration();
   };
+
+  return handler;
 }

@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { isBashAllowed } from "../permissions.js";
 
 export const schema = {
   type: "function",
@@ -16,6 +17,13 @@ export const schema = {
 };
 
 export const sensitive = true;
+
+export const shouldConfirm = (args) => !isBashAllowed(args?.command);
+
+export function summarize(args) {
+  if (!args.command) return "";
+  return args.command.length > 80 ? args.command.slice(0, 80) + "\u2026" : args.command;
+}
 
 export function execute({ command }) {
   if (!command) return "ERRO: parâmetro 'command' é obrigatório.";

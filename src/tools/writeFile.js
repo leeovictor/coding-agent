@@ -19,6 +19,10 @@ export const schema = {
 
 export const sensitive = true;
 
+export function summarize(args) {
+  return args.path;
+}
+
 export function execute({ path, content }) {
   if (!path) return "ERRO: parâmetro 'path' é obrigatório.";
   if (content === undefined || content === null) return "ERRO: parâmetro 'content' é obrigatório.";

@@ -1,5 +1,6 @@
 import { extractToolCalls, extractContent, parseToolArgs, buildToolResultMessage } from "./parseResponse.js";
-import { isSensitive } from "./tools/index.js";
+import { shouldConfirm } from "./tools/index.js";
+import { createStreamReducer } from "./streamReduce.js";
 
 export const SYSTEM_PROMPT = `Você é um agente de código que opera em um terminal.
 Você tem acesso às ferramentas: read_file, write_file, run_bash.
@@ -16,12 +17,14 @@ export async function runAgent(opts) {
     tools,
     callApi,
     executeTool,
-    maxIterations = 20,
+    maxIterations = Infinity,
     onEvent = () => {},
     confirm = async () => true,
+    stream = false,
+    messages: initialMessages,
   } = opts;
 
-  const messages = [
+  const messages = initialMessages ?? [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: task },
   ];
@@ -35,10 +38,37 @@ export async function runAgent(opts) {
     }
 
     onEvent("request", { iteracao: iter, modelo: null, mensagens: messages });
-    const response = await callApi(messages, tools);
+    const response = await callApi(messages, tools, stream);
     onEvent("response", { iteracao: iter, response });
 
-    const message = response?.choices?.[0]?.message;
+    let message;
+    if (stream) {
+      const reducer = createStreamReducer();
+      let writeFileDetected = false;
+      for await (const chunk of response) {
+        const choice = chunk.choices?.[0];
+        if (choice?.delta) {
+          const delta = choice.delta;
+          reducer.next(delta);
+          if (!writeFileDetected && delta.tool_calls) {
+            const toolCalls = reducer.acc.tool_calls.filter(Boolean);
+            if (toolCalls.some(tc => tc.function?.name === "write_file")) {
+              onEvent("tool_preparing", { tool: "write_file" });
+              writeFileDetected = true;
+            }
+          }
+          if (delta.content) {
+            onEvent("token", { type: "content", text: delta.content });
+          }
+          if (delta.reasoning) {
+            onEvent("token", { type: "reasoning", text: delta.reasoning });
+          }
+        }
+      }
+      message = reducer.getFinalMessage();
+    } else {
+      message = response?.choices?.[0]?.message;
+    }
     if (!message) {
       onEvent("loop_end", { motivo: "resposta_invalida", iteracoes: iter });
       return { iterations: iter, reason: "resposta_invalida", messages };
@@ -55,13 +85,14 @@ export async function runAgent(opts) {
         onEvent("tool_decision", { iteracao: iter, tool: nome, args, error });
 
         let resultado;
+        const needsConfirm = shouldConfirm(nome, args);
         if (error) {
           resultado = error;
-        } else if (isSensitive(nome) && !(await confirm(nome, args))) {
+        } else if (needsConfirm && !(await confirm(nome, args))) {
           resultado = "Usuário recusou a execução desta ferramenta.";
           onEvent("tool_confirmation", { iteracao: iter, tool: nome, args, decisao: false });
         } else {
-          if (isSensitive(nome)) {
+          if (needsConfirm) {
             onEvent("tool_confirmation", { iteracao: iter, tool: nome, args, decisao: true });
           }
           const inicio = Date.now();
