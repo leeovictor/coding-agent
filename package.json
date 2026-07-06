@@ -1,0 +1,14 @@
+{
+  "name": "cli-agent",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --exclude test/integration.test.js",
+    "test:watch": "vitest",
+    "test:integration": "OPENROUTER_RUN_INTEGRATION=1 vitest run test/integration.test.js",
+    "dev": "node src/cli.js"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0"
+  }
+}
