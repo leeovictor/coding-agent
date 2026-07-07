@@ -110,15 +110,15 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
 
   function startThinking(label) {
     if (thinkingActive) return;
-    thinkingLabel = label ?? "Aguardando resposta...";
+    thinkingLabel = label ?? "";
     reasoningHintShown = false;
-    stdout.write(`${ORANGE}\u280b ${thinkingLabel}${RESET}`);
+    stdout.write(`${ORANGE}\u280b${thinkingLabel ? " " + thinkingLabel : ""}${RESET}`);
     thinkingActive = true;
     prevGroup = "thinking";
     if (stdout.isTTY !== false) {
       thinkingTimer = setInterval(() => {
         frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
-        stdout.write(`\r\x1b[2K${ORANGE}${SPINNER_FRAMES[frameIdx]} ${thinkingLabel}${RESET}`);
+        stdout.write(`\r\x1b[2K${ORANGE}${SPINNER_FRAMES[frameIdx]}${thinkingLabel ? " " + thinkingLabel : ""}${RESET}`);
       }, 80);
     }
   }
@@ -210,7 +210,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         stdout.write("\n");
         spinnerLineBlank = false;
         prevGroup = "reasoning";
-        startThinking("Aguardando resposta...");
+        startThinking();
         break;
       case "token":
         if (data.type === "reasoning") {

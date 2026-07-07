@@ -156,7 +156,7 @@ describe("createConsoleEventHandler", () => {
     expect(writes.join("")).toContain("\n");
   });
 
-  it("request mostra indicador Aguardando resposta... (response silencioso)", () => {
+  it("request mostra spinner (response silencioso)", () => {
     const calls = [];
     const writes = [];
     const handler = createConsoleEventHandler({
@@ -167,7 +167,7 @@ describe("createConsoleEventHandler", () => {
     handler("response", {});
     expect(calls).toHaveLength(0);
     expect(writes).toHaveLength(2);
-    expect(writes[1]).toContain("Aguardando resposta...");
+    expect(writes[1]).toContain("\u280b");
     expect(writes[1]).toContain("\x1b[38;5;208m");
   });
 
@@ -177,10 +177,10 @@ describe("createConsoleEventHandler", () => {
     handler("request", { iteracao: 1 });
     handler("token", { type: "content", text: "ok\n" });
     const output = writes.join("");
-    expect(output).toContain("Aguardando resposta...");
+    expect(output).toContain("\u280b");
     expect(output).toContain("ok");
     expect(output).toContain("\r");
-    expect(output.indexOf("ok")).toBeGreaterThan(output.lastIndexOf("Aguardando resposta..."));
+    expect(output.indexOf("ok")).toBeGreaterThan(output.lastIndexOf("\u280b"));
   });
 
   it("request em TTY rotaciona frames do spinner", () => {
@@ -190,7 +190,7 @@ describe("createConsoleEventHandler", () => {
       stdout: { write: (s) => writes.push(s), isTTY: true },
     });
     handler("request", { iteracao: 1 });
-    expect(writes.join("")).toContain("\u280b Aguardando resposta...");
+    expect(writes.join("")).toContain("\u280b");
     vi.advanceTimersByTime(80);
     expect(writes.join("")).toContain("\u2819");
     vi.advanceTimersByTime(80);

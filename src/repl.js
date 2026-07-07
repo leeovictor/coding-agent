@@ -8,6 +8,7 @@ import { callApi, currentModel, currentReasoningEffort } from "./openrouter.js";
 import { selectModel } from "./commands/models.js";
 import { selectEffort } from "./commands/effort.js";
 import { promptApiKey } from "./commands/apikey.js";
+import { selectAgent, listAndShowAgents } from "./commands/agent.js";
 import { ensureApiKey } from "./ensureKey.js";
 import { getCurrentAgent, getCurrentAgentName, switchAgent, listAgents, agentColor, buildHelpText } from "./agents.js";
 
@@ -20,7 +21,7 @@ function makeQuestion(rl) {
   ]);
 }
 
-const COMMANDS = ["/exit", "/clear", "/help", "/models", "/effort", "/api-key", "/agent", "/agents"];
+const COMMANDS = ["/exit", "/new", "/help", "/models", "/effort", "/api-key", "/agent", "/agents"];
 
 function completer(line) {
   if (line.startsWith("/agent ")) {
@@ -80,14 +81,14 @@ export async function runRepl() {
 
     if (trimmed === "/exit") break;
 
-    if (trimmed === "/clear") {
+    if (trimmed === "/new") {
       console.clear();
       messages = [{ role: "system", content: SYSTEM_PROMPT }];
       continue;
     }
 
     if (trimmed === "/help") {
-      console.log("Comandos: /exit, /clear, /help, /models, /effort, /api-key, /agent <nome>, /agents");
+      console.log("Comandos: /exit, /new, /help, /models, /effort, /api-key, /agent <nome>, /agents");
       console.log(buildHelpText());
       continue;
     }
@@ -103,14 +104,24 @@ export async function runRepl() {
       continue;
     }
 
-    if (trimmed === "/agents") {
-      const agents = listAgents();
-      const current = getCurrentAgentName();
-      console.log("Agentes dispon\u00edveis:");
-      for (const a of agents) {
-        const marker = a.name === current ? " (ativo)" : "";
-        console.log(`  ${a.name}${marker} - ${a.description}`);
+    if (trimmed === "/agent") {
+      closeRl(rl);
+      try {
+        const selected = await selectAgent();
+        switchAgent(selected);
+        console.log(`\nAgente alterado para: ${selected}\n`);
+      } catch (e) {
+        if (e.message !== "User force closed the prompt" && !e.message?.includes("canceled")) {
+          console.error(`\nErro ao selecionar agente: ${e.message}\n`);
+        }
       }
+      rl = createRl();
+      question = makeQuestion(rl);
+      continue;
+    }
+
+    if (trimmed === "/agents") {
+      listAndShowAgents();
       continue;
     }
 

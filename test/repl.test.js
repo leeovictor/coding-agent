@@ -22,6 +22,15 @@ vi.mock("../src/commands/apikey.js", () => ({
   promptApiKey: mockPromptApiKey,
 }));
 
+const { mockSelectAgent, mockListAndShowAgents } = vi.hoisted(() => ({
+  mockSelectAgent: vi.fn().mockResolvedValue("plan"),
+  mockListAndShowAgents: vi.fn(),
+}));
+vi.mock("../src/commands/agent.js", () => ({
+  selectAgent: mockSelectAgent,
+  listAndShowAgents: mockListAndShowAgents,
+}));
+
 const mockEnsureApiKey = vi.hoisted(() => vi.fn());
 vi.mock("../src/ensureKey.js", () => ({
   ensureApiKey: mockEnsureApiKey,
@@ -104,8 +113,8 @@ describe("runRepl", () => {
     expect(mockRl.close).toHaveBeenCalled();
   });
 
-  it("/clear limpa console e reinicia mensagens", async () => {
-    mockRl = makeMockRl(["/clear", "/exit"]);
+  it("/new limpa console e reinicia mensagens", async () => {
+    mockRl = makeMockRl(["/new", "/exit"]);
     createInterface.mockReturnValue(mockRl);
     const { runRepl } = await import("../src/repl.js");
     await runRepl();
@@ -231,8 +240,17 @@ describe("runRepl", () => {
     createInterface.mockReturnValue(mockRl);
     const { runRepl } = await import("../src/repl.js");
     await runRepl();
-    expect(mockListAgents).toHaveBeenCalled();
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Agentes"));
+    expect(mockListAndShowAgents).toHaveBeenCalled();
+  });
+
+  it("/agent (sem args) usa prompt interativo", async () => {
+    mockRl = makeMockRl(["/agent", "/exit"]);
+    createInterface.mockReturnValue(mockRl);
+    const { runRepl } = await import("../src/repl.js");
+    await runRepl();
+    expect(mockSelectAgent).toHaveBeenCalled();
+    expect(mockSwitchAgent).toHaveBeenCalledWith("plan");
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("plan"));
   });
 
   it("/help inclui agentes na saída", async () => {
