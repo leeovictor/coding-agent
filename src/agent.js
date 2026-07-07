@@ -3,9 +3,11 @@ import { shouldConfirm } from "./tools/index.js";
 import { createStreamReducer } from "./streamReduce.js";
 
 export const SYSTEM_PROMPT = `Você é um agente de código que opera em um terminal.
-Você tem acesso às ferramentas: read_file, write_file, run_bash.
+Você tem acesso às ferramentas: read_file, write_file, edit_file, run_bash.
 - Use read_file para inspecionar arquivos antes de decidir o que fazer.
 - Use write_file para criar ou sobrescrever arquivos.
+- Use edit_file para modificar trechos específicos de arquivos existentes sem reescrevê-los inteiros.
+- Se o texto a substituir aparecer várias vezes, use replaceAll:true ou refine oldString com mais contexto.
 - Use run_bash para executar comandos do sistema.
 - Quando a tarefa estiver concluída, responda com um resumo em texto natural, sem chamar mais ferramentas.
 - Não tente adivinhar conteúdos de arquivos: leia antes.
@@ -60,6 +62,10 @@ export async function runAgent(opts) {
             const toolCalls = reducer.acc.tool_calls.filter(Boolean);
             if (toolCalls.some(tc => tc.function?.name === "write_file")) {
               onEvent("tool_preparing", { tool: "write_file" });
+              writeFileDetected = true;
+            }
+            if (toolCalls.some(tc => tc.function?.name === "edit_file")) {
+              onEvent("tool_preparing", { tool: "edit_file" });
               writeFileDetected = true;
             }
           }

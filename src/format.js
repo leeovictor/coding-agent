@@ -28,6 +28,9 @@ export function formatConfirmation({ iteracao, tool, args }) {
   if (tool === "write_file") {
     return `${RED}? Write file ${args.path} (y/n):${RESET}`;
   }
+  if (tool === "edit_file") {
+    return `${RED}? Edit file ${args.filePath} (y/n):${RESET}`;
+  }
   if (tool === "run_bash") {
     return `${RED}? Run bash ${args.command} (y/n):${RESET}`;
   }
@@ -236,6 +239,13 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
           showReasoningDuration();
           beginGroup("preparing");
           stdout.write("Preparando escrita...\n");
+        } else if (data.tool === "edit_file") {
+          markdownWriter.flush();
+          clearThinking();
+          flushReasoning();
+          showReasoningDuration();
+          beginGroup("preparing");
+          stdout.write("Preparando edi\u00e7\u00e3o...\n");
         }
         break;
       case "tool_decision":
@@ -250,6 +260,9 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         } else if (data.tool === "write_file") {
           const path = data.args?.path ?? data.error ?? "?";
           stdout.write(`${GRAY}-> Write file ${path}${RESET}\n`);
+        } else if (data.tool === "edit_file") {
+          const path = data.args?.filePath ?? data.error ?? "?";
+          stdout.write(`${GRAY}-> Edit file ${path}${RESET}\n`);
         } else if (data.tool === "run_bash") {
           const cmd = data.args?.command ?? data.error ?? "?";
           stdout.write(`${GRAY}-> Run bash ${cmd}${RESET}\n`);
@@ -265,7 +278,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         beginGroup("tool");
         if (data.tool === "run_bash") {
           stdout.write(formatBashOutput(data) + "\n");
-        } else if (data.tool !== "read_file" && data.tool !== "write_file") {
+        } else if (data.tool !== "read_file" && data.tool !== "write_file" && data.tool !== "edit_file") {
           log(formatToolResult(data));
         }
         break;

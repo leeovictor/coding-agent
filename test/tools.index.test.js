@@ -2,13 +2,13 @@ import { describe, it, expect } from "vitest";
 import { toolRegistry, getToolSchema, executeTool, isSensitive, shouldConfirm, summarizeTool } from "../src/tools/index.js";
 
 describe("tools registry", () => {
-  it("tem exatamente 3 tools", () => {
-    expect(Object.keys(toolRegistry).sort()).toEqual(["read_file", "run_bash", "write_file"]);
+  it("tem exatamente 4 tools", () => {
+    expect(Object.keys(toolRegistry).sort()).toEqual(["edit_file", "read_file", "run_bash", "write_file"]);
   });
 
   it("getToolSchema retorna array no formato OpenAI", () => {
     const schemas = getToolSchema();
-    expect(schemas).toHaveLength(3);
+    expect(schemas).toHaveLength(4);
     schemas.forEach((s) => {
       expect(s.type).toBe("function");
       expect(s.function.name).toBeTruthy();
@@ -32,9 +32,15 @@ describe("tools registry", () => {
     expect(s.function.parameters.required).toEqual(["command"]);
   });
 
-  it("isSensitive: read_file=false, write_file=true, run_bash=true", () => {
+  it("edit_file tem required: ['filePath','oldString','newString']", () => {
+    const s = getToolSchema().find((s) => s.function.name === "edit_file");
+    expect(s.function.parameters.required).toEqual(["filePath", "oldString", "newString"]);
+  });
+
+  it("isSensitive: read_file=false, write_file=true, edit_file=true, run_bash=true", () => {
     expect(isSensitive("read_file")).toBe(false);
     expect(isSensitive("write_file")).toBe(true);
+    expect(isSensitive("edit_file")).toBe(true);
     expect(isSensitive("run_bash")).toBe(true);
   });
 
@@ -65,6 +71,14 @@ describe("shouldConfirm", () => {
     expect(shouldConfirm("write_file", { path: "package.json", content: "x" })).toBe(false);
   });
 
+  it("edit_file exige confirmação para path fora do cwd", () => {
+    expect(shouldConfirm("edit_file", { filePath: "/tmp/foo", oldString: "a", newString: "b" })).toBe(true);
+  });
+
+  it("edit_file nao exige confirmacao para path dentro do cwd", () => {
+    expect(shouldConfirm("edit_file", { filePath: "package.json", oldString: "a", newString: "b" })).toBe(false);
+  });
+
   it("run_bash com comando permitido não exige confirmação", () => {
     expect(shouldConfirm("run_bash", { command: "ls -la" })).toBe(false);
     expect(shouldConfirm("run_bash", { command: "git status" })).toBe(false);
@@ -89,6 +103,10 @@ describe("summarizeTool", () => {
 
   it("write_file retorna path", () => {
     expect(summarizeTool("write_file", { path: "b.js", content: "..." })).toBe("b.js");
+  });
+
+  it("edit_file retorna filePath", () => {
+    expect(summarizeTool("edit_file", { filePath: "c.txt", oldString: "a", newString: "b" })).toBe("c.txt");
   });
 
   it("run_bash retorna command", () => {

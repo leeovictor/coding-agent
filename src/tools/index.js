@@ -1,11 +1,13 @@
 import * as readFile from "./readFile.js";
 import * as writeFile from "./writeFile.js";
 import * as runBash from "./runBash.js";
+import * as editFile from "./edit.js";
 
 export const toolRegistry = {
   read_file: { schema: readFile.schema, execute: readFile.execute, sensitive: readFile.sensitive, summarize: readFile.summarize },
   write_file: { schema: writeFile.schema, execute: writeFile.execute, sensitive: writeFile.sensitive, summarize: writeFile.summarize, shouldConfirm: writeFile.shouldConfirm },
   run_bash: { schema: runBash.schema, execute: runBash.execute, sensitive: runBash.sensitive, summarize: runBash.summarize, shouldConfirm: runBash.shouldConfirm },
+  edit_file: { schema: editFile.schema, execute: editFile.execute, sensitive: editFile.sensitive, summarize: editFile.summarize, shouldConfirm: editFile.shouldConfirm },
 };
 
 /**
