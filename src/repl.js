@@ -20,8 +20,25 @@ function makeQuestion(rl) {
   ]);
 }
 
+const COMMANDS = ["/exit", "/clear", "/help", "/models", "/effort", "/api-key", "/agent", "/agents"];
+
+function completer(line) {
+  if (line.startsWith("/agent ")) {
+    const partial = line.slice(7);
+    const agentNames = listAgents().map((a) => a.name);
+    const hits = agentNames.filter((n) => n.startsWith(partial));
+    return [hits.length ? hits.map((n) => `/agent ${n}`) : [], line];
+  }
+  if (!line.startsWith("/")) {
+    const hits = COMMANDS.filter((c) => c.startsWith(line));
+    return [hits.length ? hits : COMMANDS, line];
+  }
+  const hits = COMMANDS.filter((c) => c.startsWith(line));
+  return [hits.length ? hits : COMMANDS, line];
+}
+
 function createRl() {
-  return createInterface({ input: process.stdin, output: process.stdout });
+  return createInterface({ input: process.stdin, output: process.stdout, completer });
 }
 
 function closeRl(rl) {
