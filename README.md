@@ -3,9 +3,7 @@
 Agente de código autônomo para terminal. Conecta-se ao OpenRouter, pilota ferramentas
 (read, write, edit, bash, grep, glob, etc.) em loop até concluir a tarefa.
 
-## Demo
-
-> Video em breve
+<img width="800" height="450" alt="ezgif-5909fea3f603e10a" src="https://github.com/user-attachments/assets/54e0b061-a741-4397-a9e7-1423a6e37dbe" />
 
 ## Quick start
 
