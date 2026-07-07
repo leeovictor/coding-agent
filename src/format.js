@@ -39,9 +39,9 @@ export function formatFinal(content) {
 }
 
 export function formatLoopEnd({ motivo, iteracoes }) {
-  if (motivo === "concluido") return "\n";
-  if (motivo === "limite_atingido") return `\n[AVISO: loop encerrado por limite de itera\u00e7\u00f5es (${iteracoes})]`;
-  return `\n[loop encerrado: ${motivo}]`;
+  if (motivo === "concluido") return "";
+  if (motivo === "limite_atingido") return `[AVISO: loop encerrado por limite de itera\u00e7\u00f5es (${iteracoes})]`;
+  return `[loop encerrado: ${motivo}]`;
 }
 
 const GRAY = "\x1b[90m";
@@ -73,22 +73,25 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
   let thinkingActive = false;
   let thinkingTimer = null;
   let frameIdx = 0;
-  let prevSection = "none";
+  let prevGroup = "none";
   let reasoningBuffer = "";
   let showReasoning = false;
   let reasoningHintShown = false;
   let thinkingLabel = "Pensando...";
   let inputAttached = false;
   let reasoningStart = null;
-  let skipNextSectionBreak = false;
+  let spinnerLineBlank = false;
 
   const markdownWriter = createMarkdownWriter({ stdout });
 
-  function sectionBreak(next) {
-    if (prevSection !== "none" && prevSection !== next) {
-      stdout.write("\n");
+  function beginGroup(name) {
+    if (prevGroup !== "none" && prevGroup !== name) {
+      if (!spinnerLineBlank) {
+        stdout.write("\n");
+      }
     }
-    prevSection = next;
+    spinnerLineBlank = false;
+    prevGroup = name;
   }
 
   function startThinking() {
@@ -97,7 +100,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     reasoningHintShown = false;
     stdout.write(`${ORANGE}\u280b ${thinkingLabel}${RESET}`);
     thinkingActive = true;
-    prevSection = "thinking";
+    prevGroup = "thinking";
     if (stdout.isTTY !== false) {
       thinkingTimer = setInterval(() => {
         frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
@@ -114,6 +117,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     if (thinkingActive) {
       stdout.write(`\r\x1b[2K\r${RESET}`);
       thinkingActive = false;
+      spinnerLineBlank = true;
     }
   }
 
@@ -122,7 +126,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     showReasoning = true;
     clearThinking();
     if (reasoningBuffer) {
-      sectionBreak("reasoning");
+      beginGroup("reasoning");
       stdout.write(`${ORANGE}\u203a `);
       const parts = reasoningBuffer.split("\n");
       for (let i = 0; i < parts.length; i++) {
@@ -166,14 +170,14 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     }
   }
 
-  function showReasoningDuration(nextSection) {
+  function showReasoningDuration() {
     if (reasoningStart === null) return false;
+    beginGroup("reasoning");
     const elapsed = Date.now() - reasoningStart;
     const secs = (elapsed / 1000).toFixed(1);
-    stdout.write(`${ORANGE}+ Pensou: ${secs}s${RESET}\n\n`);
+    stdout.write(`${ORANGE}+ Pensou: ${secs}s${RESET}\n`);
+    spinnerLineBlank = false;
     reasoningStart = null;
-    skipNextSectionBreak = false;
-    if (nextSection) prevSection = nextSection;
     return true;
   }
 
@@ -186,7 +190,8 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         markdownWriter.reset();
         attachInput();
         stdout.write("\n");
-        skipNextSectionBreak = true;
+        spinnerLineBlank = false;
+        prevGroup = "reasoning";
         startThinking();
         break;
       case "token":
@@ -200,7 +205,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
           } else {
             clearThinking();
             if (!reasoningActive) {
-              sectionBreak("reasoning");
+              beginGroup("reasoning");
               stdout.write(`${ORANGE}\u203a `);
               reasoningActive = true;
             }
@@ -217,9 +222,8 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         } else {
           clearThinking();
           flushReasoning();
-          const hadReasoning = showReasoningDuration("content");
-          if (!hadReasoning && !skipNextSectionBreak) sectionBreak("content");
-          skipNextSectionBreak = false;
+          showReasoningDuration();
+          beginGroup("content");
           contentStreamed = true;
           markdownWriter.push(data.text);
         }
@@ -229,8 +233,8 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
           markdownWriter.flush();
           clearThinking();
           flushReasoning();
-          if (!showReasoningDuration("content") && !skipNextSectionBreak) sectionBreak("content");
-          skipNextSectionBreak = false;
+          showReasoningDuration();
+          beginGroup("preparing");
           stdout.write("Preparando escrita...\n");
         }
         break;
@@ -238,7 +242,8 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         markdownWriter.flush();
         clearThinking();
         flushReasoning();
-        if (!showReasoningDuration("tool")) sectionBreak("tool");
+        showReasoningDuration();
+        beginGroup("tool");
         if (data.tool === "read_file") {
           const path = data.args?.path ?? data.error ?? "?";
           stdout.write(`${GRAY}-> Read file ${path}${RESET}\n`);
@@ -256,7 +261,8 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         markdownWriter.flush();
         clearThinking();
         flushReasoning();
-        if (!showReasoningDuration("tool")) sectionBreak("tool");
+        showReasoningDuration();
+        beginGroup("tool");
         if (data.tool === "run_bash") {
           stdout.write(formatBashOutput(data) + "\n");
         } else if (data.tool !== "read_file" && data.tool !== "write_file") {
@@ -267,14 +273,16 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         markdownWriter.flush();
         clearThinking();
         flushReasoning();
-        if (!showReasoningDuration("confirmation")) sectionBreak("confirmation");
+        showReasoningDuration();
+        beginGroup("tool");
         log(formatConfirmation(data));
         break;
       case "final_content":
         markdownWriter.flush();
         clearThinking();
         flushReasoning();
-        if (!showReasoningDuration("content")) sectionBreak("content");
+        showReasoningDuration();
+        beginGroup("content");
         if (!contentStreamed) {
           log(formatFinal(data.content));
         }
@@ -284,7 +292,11 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         clearThinking();
         flushReasoning();
         showReasoningDuration();
-        log(formatLoopEnd(data));
+        if (data.motivo !== "concluido") {
+          beginGroup("end");
+          log(formatLoopEnd(data));
+        }
+        stdout.write("\n");
         break;
     }
   }

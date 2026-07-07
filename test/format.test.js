@@ -84,8 +84,8 @@ describe("formatFinal", () => {
 });
 
 describe("formatLoopEnd", () => {
-  it("motivo concluido retorna apenas nova linha", () => {
-    expect(formatLoopEnd({ motivo: "concluido", iteracoes: 3 })).toBe("\n");
+  it("motivo concluido retorna vazio (blank tratado pelo handler)", () => {
+    expect(formatLoopEnd({ motivo: "concluido", iteracoes: 3 })).toBe("");
   });
   it("motivo limite_atingido tem AVISO", () => {
     expect(formatLoopEnd({ motivo: "limite_atingido", iteracoes: 20 })).toMatch(/AVISO/);
@@ -150,10 +150,10 @@ describe("createConsoleEventHandler", () => {
     handler("tool_decision", { iteracao: 1, tool: "x", args: {}, error: null });
     handler("final_content", { content: "fim" });
     handler("loop_end", { motivo: "concluido", iteracoes: 1 });
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
     expect(calls[0]).toMatch(/\u2192 x/);
     expect(calls[1]).toMatch(/fim/);
-    expect(calls[2]).toBe("\n");
+    expect(writes.join("")).toContain("\n");
   });
 
   it("request mostra indicador Pensando... (response silencioso)", () => {
