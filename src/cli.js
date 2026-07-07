@@ -4,7 +4,7 @@ import { createLogger } from "./logger.js";
 import { createConsoleEventHandler, formatConfirmation } from "./format.js";
 import { createConfirm } from "./confirm.js";
 import { getToolSchema, executeTool } from "./tools/index.js";
-import { callApi, currentModel } from "./openrouter.js";
+import { callApi, currentModel, currentReasoningEffort } from "./openrouter.js";
 
 const task = process.argv[2];
 
@@ -14,6 +14,7 @@ if (task) {
   const confirm = createConfirm({ formatConfirmation });
 
   console.log(`Modelo: ${currentModel}`);
+  if (currentReasoningEffort) console.log(`Reasoning effort: ${currentReasoningEffort}`);
   console.log(`Logs: ${logger.filePath}\n`);
 
   try {

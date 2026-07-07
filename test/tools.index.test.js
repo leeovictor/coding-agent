@@ -57,8 +57,12 @@ describe("shouldConfirm", () => {
     expect(shouldConfirm("read_file", { path: "/etc/shadow" })).toBe(false);
   });
 
-  it("write_file sempre exige confirmação", () => {
-    expect(shouldConfirm("write_file", { path: "a", content: "x" })).toBe(true);
+  it("write_file exige confirmação para path fora do cwd", () => {
+    expect(shouldConfirm("write_file", { path: "/tmp/foo", content: "x" })).toBe(true);
+  });
+
+  it("write_file nao exige confirmacao para path dentro do cwd", () => {
+    expect(shouldConfirm("write_file", { path: "package.json", content: "x" })).toBe(false);
   });
 
   it("run_bash com comando permitido não exige confirmação", () => {

@@ -164,7 +164,7 @@ describe("runAgent", () => {
 
   it("respeita função confirm para tools sensíveis", async () => {
     const callApi = queueResponses(
-      toolResponse([makeToolCall("1", "write_file", { path: "a", content: "x" })]),
+      toolResponse([makeToolCall("1", "write_file", { path: "/tmp/foo", content: "x" })]),
       textResponse("feito"),
     );
     const confirm = vi.fn(async () => false);
@@ -176,7 +176,7 @@ describe("runAgent", () => {
       executeTool,
       confirm,
     });
-    expect(confirm).toHaveBeenCalledWith("write_file", { path: "a", content: "x" });
+    expect(confirm).toHaveBeenCalledWith("write_file", { path: "/tmp/foo", content: "x" });
     expect(executeTool).not.toHaveBeenCalled();
     const toolMsg = result.messages.find((m) => m.role === "tool");
     expect(toolMsg.content).toMatch(/recusou/);
@@ -257,7 +257,7 @@ describe("runAgent", () => {
 
   it("emite tool_confirmation para write_file (ainda sensível)", async () => {
     const callApi = queueResponses(
-      toolResponse([makeToolCall("1", "write_file", { path: "a", content: "x" })]),
+      toolResponse([makeToolCall("1", "write_file", { path: "/tmp/foo", content: "x" })]),
       textResponse("feito"),
     );
     const events = [];

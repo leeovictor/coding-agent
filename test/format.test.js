@@ -84,8 +84,8 @@ describe("formatFinal", () => {
 });
 
 describe("formatLoopEnd", () => {
-  it("motivo concluido", () => {
-    expect(formatLoopEnd({ motivo: "concluido", iteracoes: 3 })).toMatch(/conclu\u00eddo em 3/);
+  it("motivo concluido retorna apenas nova linha", () => {
+    expect(formatLoopEnd({ motivo: "concluido", iteracoes: 3 })).toBe("\n");
   });
   it("motivo limite_atingido tem AVISO", () => {
     expect(formatLoopEnd({ motivo: "limite_atingido", iteracoes: 20 })).toMatch(/AVISO/);
@@ -153,7 +153,7 @@ describe("createConsoleEventHandler", () => {
     expect(calls).toHaveLength(3);
     expect(calls[0]).toMatch(/\u2192 x/);
     expect(calls[1]).toMatch(/fim/);
-    expect(calls[2]).toMatch(/conclu\u00eddo/);
+    expect(calls[2]).toBe("\n");
   });
 
   it("request mostra indicador Pensando... (response silencioso)", () => {
@@ -175,7 +175,7 @@ describe("createConsoleEventHandler", () => {
     const writes = [];
     const handler = createConsoleEventHandler({ stdout: { write: (s) => writes.push(s) } });
     handler("request", { iteracao: 1 });
-    handler("token", { type: "content", text: "ok" });
+    handler("token", { type: "content", text: "ok\n" });
     const output = writes.join("");
     expect(output).toContain("Pensando...");
     expect(output).toContain("ok");
@@ -212,19 +212,28 @@ describe("createConsoleEventHandler", () => {
     expect(writes).toHaveLength(0);
   });
 
-  it("token content escreve no stdout normalmente", () => {
+  it("token content escreve no stdout quando termina em \\n", () => {
     const writes = [];
     const handler = createConsoleEventHandler({ stdout: { write: (s) => writes.push(s) } });
-    handler("token", { type: "content", text: "Hello" });
+    handler("token", { type: "content", text: "Hello\n" });
     const output = writes.join("");
     expect(output).toContain("Hello");
+  });
+
+  it("token content sem \\n acumula ate flush", () => {
+    const writes = [];
+    const handler = createConsoleEventHandler({ stdout: { write: (s) => writes.push(s) } });
+    handler("token", { type: "content", text: "buffered" });
+    expect(writes.join("")).not.toContain("buffered");
+    handler("final_content", { content: "buffered" });
+    expect(writes.join("")).toContain("buffered");
   });
 
   it("reasoning oculto + content escreve apenas content", () => {
     const writes = [];
     const handler = createConsoleEventHandler({ stdout: { write: (s) => writes.push(s) } });
     handler("token", { type: "reasoning", text: "pensando" });
-    handler("token", { type: "content", text: "resposta" });
+    handler("token", { type: "content", text: "resposta\n" });
     const output = writes.join("");
     expect(output).not.toContain("pensando");
     expect(output).toContain("resposta");
@@ -270,13 +279,14 @@ describe("createConsoleEventHandler", () => {
     expect(writes).toHaveLength(0);
   });
 
-  it("spinner mostra hint (r = ver racioc\u00ednio) quando reasoning oculto chega", () => {
+  it("reasoning oculto nao aparece mas ainda pode ser revelado com tecla r", () => {
     const writes = [];
     const handler = createConsoleEventHandler({ stdout: { write: (s) => writes.push(s) } });
     handler("request", { iteracao: 1 });
     handler("token", { type: "reasoning", text: "raciocinando" });
     const output = writes.join("");
-    expect(output).toContain("ver racioc\u00ednio");
+    expect(output).not.toContain("raciocinando");
+    expect(output).not.toContain("ver racioc\u00ednio");
   });
 
   it("tecla 'r' revela reasoning acumulado com prefixo \u203a", () => {
@@ -350,7 +360,7 @@ describe("createConsoleEventHandler", () => {
     expect(writes.length).toBe(depoisPrimeiro);
   });
 
-  it("dispose desanexa input e restaura setRawMode(false)", () => {
+  it("dispose desanexa input (nao restaura setRawMode - readline precisa de raw)", () => {
     const stdin = new EventEmitter();
     stdin.isTTY = true;
     stdin.setRawMode = vi.fn();
@@ -361,7 +371,8 @@ describe("createConsoleEventHandler", () => {
     handler("request", { iteracao: 1 });
     expect(stdin.setRawMode).toHaveBeenCalledWith(true);
     handler.dispose();
-    expect(stdin.setRawMode).toHaveBeenCalledWith(false);
+    expect(stdin.setRawMode).toHaveBeenCalledTimes(1);
+    expect(stdin.setRawMode).not.toHaveBeenCalledWith(false);
     expect(stdin.listenerCount("keypress")).toBe(0);
   });
 

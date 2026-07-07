@@ -9,6 +9,13 @@ export function setModel(model) {
   currentModel = model;
 }
 
+export let currentReasoningEffort =
+  env.OPENROUTER_REASONING_EFFORT || null;
+
+export function setReasoningEffort(effort) {
+  currentReasoningEffort = effort || null;
+}
+
 export function getApiKey() {
   return process.env.OPENROUTER_API_KEY || env.OPENROUTER_API_KEY;
 }
@@ -25,6 +32,9 @@ function buildBody(messages, tools, stream) {
   if (tools && tools.length > 0) {
     body.tools = tools;
     body.tool_choice = "auto";
+  }
+  if (currentReasoningEffort) {
+    body.reasoning = { effort: currentReasoningEffort };
   }
   return body;
 }

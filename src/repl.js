@@ -4,8 +4,9 @@ import { createLogger } from "./logger.js";
 import { createConsoleEventHandler, formatConfirmation } from "./format.js";
 import { createConfirm } from "./confirm.js";
 import { getToolSchema, executeTool } from "./tools/index.js";
-import { callApi, currentModel } from "./openrouter.js";
+import { callApi, currentModel, currentReasoningEffort } from "./openrouter.js";
 import { selectModel } from "./commands/models.js";
+import { selectEffort } from "./commands/effort.js";
 
 function makeQuestion(rl) {
   return (query) => new Promise((resolve) => rl.question(query, resolve));
@@ -23,6 +24,7 @@ export async function runRepl() {
   });
 
   console.log(`Modelo: ${currentModel}`);
+  if (currentReasoningEffort) console.log(`Reasoning effort: ${currentReasoningEffort}`);
   console.log(`Logs: ${logger.filePath}\n`);
   console.log(`Modo REPL. Digite /help para comandos.\n`);
 
@@ -39,7 +41,22 @@ export async function runRepl() {
     }
 
     if (trimmed === "/help") {
-      console.log("Comandos: /exit, /clear, /help, /models");
+      console.log("Comandos: /exit, /clear, /help, /models, /effort");
+      continue;
+    }
+
+    if (trimmed === "/effort") {
+      rl.close();
+      try {
+        const selected = await selectEffort();
+        console.log(`\nReasoning effort alterado para: ${selected || "nenhum"}\n`);
+      } catch (e) {
+        if (e.message !== "User force closed the prompt" && !e.message?.includes("canceled")) {
+          console.error(`\nErro ao alterar effort: ${e.message}\n`);
+        }
+      }
+      rl = createInterface({ input: process.stdin, output: process.stdout });
+      question = makeQuestion(rl);
       continue;
     }
 
@@ -72,9 +89,7 @@ export async function runRepl() {
         confirm,
         stream: true,
         onEvent: (event, data) => {
-          if (!(event === "loop_end" && data?.motivo === "concluido")) {
-            consoleHandler(event, data);
-          }
+          consoleHandler(event, data);
           logger.logEvent(event, data);
         },
       });

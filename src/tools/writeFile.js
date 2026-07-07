@@ -1,5 +1,6 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { isPathWithinCwd } from "../permissions.js";
 
 export const schema = {
   type: "function",
@@ -18,6 +19,7 @@ export const schema = {
 };
 
 export const sensitive = true;
+export const shouldConfirm = (args) => !isPathWithinCwd(args?.path);
 
 export function summarize(args) {
   return args.path;

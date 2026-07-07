@@ -50,18 +50,18 @@ export async function runAgent(opts) {
         if (choice?.delta) {
           const delta = choice.delta;
           reducer.next(delta);
+          if (delta.reasoning) {
+            onEvent("token", { type: "reasoning", text: delta.reasoning });
+          }
+          if (delta.content) {
+            onEvent("token", { type: "content", text: delta.content });
+          }
           if (!writeFileDetected && delta.tool_calls) {
             const toolCalls = reducer.acc.tool_calls.filter(Boolean);
             if (toolCalls.some(tc => tc.function?.name === "write_file")) {
               onEvent("tool_preparing", { tool: "write_file" });
               writeFileDetected = true;
             }
-          }
-          if (delta.content) {
-            onEvent("token", { type: "content", text: delta.content });
-          }
-          if (delta.reasoning) {
-            onEvent("token", { type: "reasoning", text: delta.reasoning });
           }
         }
       }

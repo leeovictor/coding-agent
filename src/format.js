@@ -1,5 +1,6 @@
 import { emitKeypressEvents } from "node:readline";
 import { summarizeTool } from "./tools/index.js";
+import { createMarkdownWriter } from "./markdownWriter.js";
 
 const PREVIEW_LEN = 500;
 
@@ -38,7 +39,7 @@ export function formatFinal(content) {
 }
 
 export function formatLoopEnd({ motivo, iteracoes }) {
-  if (motivo === "concluido") return `\n[loop encerrado: conclu\u00eddo em ${iteracoes} itera\u00e7\u00e3o(\u00f5es)]`;
+  if (motivo === "concluido") return "\n";
   if (motivo === "limite_atingido") return `\n[AVISO: loop encerrado por limite de itera\u00e7\u00f5es (${iteracoes})]`;
   return `\n[loop encerrado: ${motivo}]`;
 }
@@ -79,11 +80,13 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
   let thinkingLabel = "Pensando...";
   let inputAttached = false;
   let reasoningStart = null;
+  let skipNextSectionBreak = false;
+
+  const markdownWriter = createMarkdownWriter({ stdout });
 
   function sectionBreak(next) {
     if (prevSection !== "none" && prevSection !== next) {
       stdout.write("\n");
-      if (prevSection === "content") stdout.write("\n");
     }
     prevSection = next;
   }
@@ -154,7 +157,6 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     if (!inputAttached) return;
     inputAttached = false;
     stdin.removeListener("keypress", onKeypress);
-    stdin.setRawMode(false);
   }
 
   function flushReasoning() {
@@ -170,6 +172,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     const secs = (elapsed / 1000).toFixed(1);
     stdout.write(`${ORANGE}+ Pensou: ${secs}s${RESET}\n\n`);
     reasoningStart = null;
+    skipNextSectionBreak = false;
     if (nextSection) prevSection = nextSection;
     return true;
   }
@@ -180,8 +183,10 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         reasoningBuffer = "";
         showReasoning = false;
         reasoningStart = null;
+        markdownWriter.reset();
         attachInput();
         stdout.write("\n");
+        skipNextSectionBreak = true;
         startThinking();
         break;
       case "token":
@@ -190,8 +195,6 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
           if (reasoningStart === null) reasoningStart = Date.now();
           if (!showReasoning) {
             if (!reasoningHintShown && thinkingActive) {
-              thinkingLabel = "Pensando... (r = ver racioc\u00ednio)";
-              stdout.write(`\r${ORANGE}\u280b ${thinkingLabel}${RESET}`);
               reasoningHintShown = true;
             }
           } else {
@@ -214,20 +217,25 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         } else {
           clearThinking();
           flushReasoning();
-          if (!showReasoningDuration("content")) sectionBreak("content");
+          const hadReasoning = showReasoningDuration("content");
+          if (!hadReasoning && !skipNextSectionBreak) sectionBreak("content");
+          skipNextSectionBreak = false;
           contentStreamed = true;
-          stdout.write(data.text);
+          markdownWriter.push(data.text);
         }
         break;
       case "tool_preparing":
         if (data.tool === "write_file") {
+          markdownWriter.flush();
           clearThinking();
           flushReasoning();
-          if (!showReasoningDuration("content")) sectionBreak("content");
+          if (!showReasoningDuration("content") && !skipNextSectionBreak) sectionBreak("content");
+          skipNextSectionBreak = false;
           stdout.write("Preparando escrita...\n");
         }
         break;
       case "tool_decision":
+        markdownWriter.flush();
         clearThinking();
         flushReasoning();
         if (!showReasoningDuration("tool")) sectionBreak("tool");
@@ -245,6 +253,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         }
         break;
       case "tool_execution":
+        markdownWriter.flush();
         clearThinking();
         flushReasoning();
         if (!showReasoningDuration("tool")) sectionBreak("tool");
@@ -255,12 +264,14 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         }
         break;
       case "tool_confirmation":
+        markdownWriter.flush();
         clearThinking();
         flushReasoning();
         if (!showReasoningDuration("confirmation")) sectionBreak("confirmation");
         log(formatConfirmation(data));
         break;
       case "final_content":
+        markdownWriter.flush();
         clearThinking();
         flushReasoning();
         if (!showReasoningDuration("content")) sectionBreak("content");
@@ -269,6 +280,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         }
         break;
       case "loop_end":
+        markdownWriter.flush();
         clearThinking();
         flushReasoning();
         showReasoningDuration();
@@ -278,6 +290,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
   }
 
   handler.dispose = function dispose() {
+    markdownWriter.flush();
     detachInput();
     clearThinking();
     showReasoningDuration();

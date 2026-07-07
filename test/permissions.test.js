@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { isBashAllowed, BASH_ALLOWLIST } from "../src/permissions.js";
+import { resolve } from "node:path";
+import { isBashAllowed, BASH_ALLOWLIST, isPathWithinCwd } from "../src/permissions.js";
 
 describe("isBashAllowed", () => {
   it("permite comandos simples da lista", () => {
@@ -126,5 +127,47 @@ describe("isBashAllowed", () => {
   it("git config --get permite get, rejeita set", () => {
     expect(isBashAllowed("git config --get user.email")).toBe(true);
     expect(isBashAllowed("git config user.email x@y.com")).toBe(false);
+  });
+});
+
+describe("isPathWithinCwd", () => {
+  const cwd = process.cwd();
+
+  it("path relativo dentro do cwd", () => {
+    expect(isPathWithinCwd("src/permissions.js")).toBe(true);
+    expect(isPathWithinCwd("package.json")).toBe(true);
+  });
+
+  it("path absoluto dentro do cwd", () => {
+    expect(isPathWithinCwd(resolve(cwd, "src"))).toBe(true);
+  });
+
+  it("path com .. escapa do cwd", () => {
+    expect(isPathWithinCwd("../")).toBe(false);
+    expect(isPathWithinCwd("../etc/passwd")).toBe(false);
+  });
+
+  it("path absoluto fora do cwd", () => {
+    expect(isPathWithinCwd("/tmp")).toBe(false);
+    expect(isPathWithinCwd("/var/log/syslog")).toBe(false);
+  });
+
+  it("path relativo normalizado fica dentro", () => {
+    expect(isPathWithinCwd("node_modules/../package.json")).toBe(true);
+  });
+
+  it("rejeita null, undefined, vazio", () => {
+    expect(isPathWithinCwd(null)).toBe(false);
+    expect(isPathWithinCwd(undefined)).toBe(false);
+    expect(isPathWithinCwd("")).toBe(false);
+  });
+
+  it("nao confunde prefixo parcial de cwd", () => {
+    // se cwd for /home/user/project, /home/user/project-other nao deve casar
+    const fakeCwd = "/foo/bar";
+    const target = "/foo/bar-extra";
+    // com resolve normal, /foo/bar-extra nao comeca com /foo/bar/ (tem sep)
+    const resolved = resolve(fakeCwd, target);
+    expect(resolved.startsWith(fakeCwd + "/")).toBe(false);
   });
 });

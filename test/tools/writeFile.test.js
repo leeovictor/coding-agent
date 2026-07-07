@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execute } from "../../src/tools/writeFile.js";
+import { execute, shouldConfirm } from "../../src/tools/writeFile.js";
 
 let tmpDir;
 beforeEach(() => { tmpDir = mkdtempSync(join(tmpdir(), "agent-")); });
@@ -35,5 +35,25 @@ describe("writeFile.execute", () => {
 
   it("retorna erro se content não fornecido", () => {
     expect(execute({ path: "x" })).toMatch(/'content'/);
+  });
+});
+
+describe("writeFile.shouldConfirm", () => {
+  it("path dentro do cwd nao requer confirmacao", () => {
+    expect(shouldConfirm({ path: "package.json" })).toBe(false);
+  });
+
+  it("path com .. fora do cwd requer confirmacao", () => {
+    expect(shouldConfirm({ path: "../etc/passwd" })).toBe(true);
+  });
+
+  it("path absoluto fora do cwd requer confirmacao", () => {
+    expect(shouldConfirm({ path: "/tmp/foo.txt" })).toBe(true);
+  });
+
+  it("path ausente requer confirmacao (fallback seguro)", () => {
+    expect(shouldConfirm({})).toBe(true);
+    expect(shouldConfirm({ path: null })).toBe(true);
+    expect(shouldConfirm({ path: "" })).toBe(true);
   });
 });
