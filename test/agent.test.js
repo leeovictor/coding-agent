@@ -487,4 +487,106 @@ describe("runAgent", () => {
     expect(userMsgs[1].content).toContain("<system-reminder>");
     expect(userMsgs[1].content).toContain("second question");
   });
+
+  it("runAgent com agente plan bloqueia tool call de run_bash", async () => {
+    const callApi = queueResponses(
+      toolResponse([makeToolCall("1", "run_bash", { command: "ls" })]),
+      textResponse("ok"),
+    );
+    const executeTool = vi.fn(() => "executed");
+    const events = [];
+    const result = await runAgent({
+      task: "list files",
+      tools: [],
+      callApi,
+      executeTool,
+      agent: { name: "plan", systemReminder: "Planning mode. No edits." },
+      onEvent: (event, data) => events.push({ event, data }),
+    });
+    expect(executeTool).not.toHaveBeenCalled();
+    const blocked = events.filter((e) => e.event === "tool_blocked");
+    expect(blocked.length).toBe(1);
+    expect(blocked[0].data.tool).toBe("run_bash");
+    expect(blocked[0].data.agent).toBe("plan");
+    const toolMsg = result.messages.find((m) => m.role === "tool");
+    expect(toolMsg.content).toMatch(/bloqueada/);
+    expect(toolMsg.content).toMatch(/'plan'/);
+    expect(toolMsg.content).toMatch(/'run_bash'/);
+  });
+
+  it("runAgent com agente plan bloqueia tool call de write_file", async () => {
+    const callApi = queueResponses(
+      toolResponse([makeToolCall("1", "write_file", { path: "test.js", content: "x" })]),
+      textResponse("ok"),
+    );
+    const executeTool = vi.fn();
+    const events = [];
+    await runAgent({
+      task: "write file",
+      tools: [],
+      callApi,
+      executeTool,
+      agent: { name: "plan", systemReminder: "Planning mode. No edits." },
+      onEvent: (event, data) => events.push({ event, data }),
+    });
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(events.some((e) => e.event === "tool_blocked")).toBe(true);
+  });
+
+  it("runAgent com agente plan permite tool call de read_file", async () => {
+    const callApi = queueResponses(
+      toolResponse([makeToolCall("1", "read_file", { path: "test.js" })]),
+      textResponse("ok"),
+    );
+    const executeTool = vi.fn(() => "content");
+    const events = [];
+    await runAgent({
+      task: "read file",
+      tools: [],
+      callApi,
+      executeTool,
+      agent: { name: "plan", systemReminder: "Planning mode. No edits." },
+      onEvent: (event, data) => events.push({ event, data }),
+    });
+    expect(executeTool).toHaveBeenCalledWith("read_file", { path: "test.js" });
+    expect(events.some((e) => e.event === "tool_blocked")).toBe(false);
+  });
+
+  it("runAgent sem agent não bloqueia tool calls", async () => {
+    const callApi = queueResponses(
+      toolResponse([makeToolCall("1", "run_bash", { command: "ls" })]),
+      textResponse("ok"),
+    );
+    const executeTool = vi.fn(() => "result");
+    const events = [];
+    await runAgent({
+      task: "list",
+      tools: [],
+      callApi,
+      executeTool,
+      onEvent: (event, data) => events.push({ event, data }),
+    });
+    expect(executeTool).toHaveBeenCalledWith("run_bash", { command: "ls" });
+    expect(events.some((e) => e.event === "tool_blocked")).toBe(false);
+  });
+
+  it("runAgent com agente build permite todos os tool calls", async () => {
+    const callApi = queueResponses(
+      toolResponse([
+        makeToolCall("1", "run_bash", { command: "ls" }),
+        makeToolCall("2", "write_file", { path: "test.js", content: "x" }),
+        makeToolCall("3", "edit_file", { filePath: "test.js", oldString: "a", newString: "b" }),
+      ]),
+      textResponse("ok"),
+    );
+    const executeTool = vi.fn((name) => `result_${name}`);
+    await runAgent({
+      task: "do stuff",
+      tools: [],
+      callApi,
+      executeTool,
+      agent: { name: "build", systemReminder: "Build mode" },
+    });
+    expect(executeTool).toHaveBeenCalledTimes(3);
+  });
 });

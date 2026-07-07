@@ -1,5 +1,5 @@
 import { extractToolCalls, extractContent, parseToolArgs, buildToolResultMessage } from "./parseResponse.js";
-import { shouldConfirm } from "./tools/index.js";
+import { shouldConfirm, isToolAllowed } from "./tools/index.js";
 import { createStreamReducer } from "./streamReduce.js";
 
 export const SYSTEM_PROMPT = `Você é um agente de código que opera em um terminal.
@@ -133,6 +133,14 @@ export async function runAgent(opts) {
         const needsConfirm = shouldConfirm(nome, args);
         if (error) {
           resultado = error;
+        } else if (agent && !isToolAllowed(agent.name, nome)) {
+          resultado = `Ferramenta bloqueada: o agente '${agent.name}' não tem permissão para executar '${nome}'.`;
+          onEvent("tool_blocked", {
+            iteracao: iter,
+            tool: nome,
+            args,
+            agent: agent.name,
+          });
         } else if (needsConfirm && !(await confirm(nome, args))) {
           resultado = "Usuário recusou a execução desta ferramenta.";
           onEvent("tool_confirmation", { iteracao: iter, tool: nome, args, decisao: false });

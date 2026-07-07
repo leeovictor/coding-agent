@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toolRegistry, getToolSchema, executeTool, isSensitive, shouldConfirm, summarizeTool } from "../src/tools/index.js";
+import { toolRegistry, getToolSchema, executeTool, isToolAllowed, isSensitive, shouldConfirm, summarizeTool } from "../src/tools/index.js";
 
 describe("tools registry", () => {
   it("tem exatamente 9 tools", () => {
@@ -85,6 +85,49 @@ describe("tools registry", () => {
   it("executeTool nunca lança — captura exceção do executor", async () => {
     const out = await executeTool("read_file", { path: "/caminho/que/nao/existe/xxx" });
     expect(out).toMatch(/ERRO/);
+  });
+
+  it("isToolAllowed('plan', 'read_file') retorna true", () => {
+    expect(isToolAllowed("plan", "read_file")).toBe(true);
+    expect(isToolAllowed("plan", "grep")).toBe(true);
+    expect(isToolAllowed("plan", "glob")).toBe(true);
+    expect(isToolAllowed("plan", "todos")).toBe(true);
+    expect(isToolAllowed("plan", "question")).toBe(true);
+  });
+
+  it("isToolAllowed('plan', 'run_bash') retorna false", () => {
+    expect(isToolAllowed("plan", "run_bash")).toBe(false);
+    expect(isToolAllowed("plan", "write_file")).toBe(false);
+    expect(isToolAllowed("plan", "edit_file")).toBe(false);
+    expect(isToolAllowed("plan", "patch_file")).toBe(false);
+  });
+
+  it("isToolAllowed('build', 'run_bash') retorna true (all tools)", () => {
+    expect(isToolAllowed("build", "run_bash")).toBe(true);
+    expect(isToolAllowed("build", "write_file")).toBe(true);
+    expect(isToolAllowed("build", "edit_file")).toBe(true);
+  });
+
+  it("isToolAllowed(null, 'run_bash') retorna true (sem agente)", () => {
+    expect(isToolAllowed(null, "run_bash")).toBe(true);
+    expect(isToolAllowed(undefined, "write_file")).toBe(true);
+  });
+
+  it("executeTool bloqueia ferramenta não permitida pelo agente", async () => {
+    const out = await executeTool("run_bash", { command: "ls" }, "plan");
+    expect(out).toMatch(/bloqueada/);
+    expect(out).toMatch(/'plan'/);
+    expect(out).toMatch(/'run_bash'/);
+  });
+
+  it("executeTool permite ferramenta permitida pelo agente", async () => {
+    const out = await executeTool("read_file", { path: "package.json" }, "plan");
+    expect(out).not.toMatch(/bloqueada/);
+  });
+
+  it("executeTool permite tool para build agent", async () => {
+    const out = await executeTool("read_file", { path: "package.json" }, "build");
+    expect(out).not.toMatch(/bloqueada/);
   });
 });
 

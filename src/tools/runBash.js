@@ -27,6 +27,9 @@ export function summarize(args) {
 
 export function execute({ command }) {
   if (!command) return "ERRO: parâmetro 'command' é obrigatório.";
+  if (!isBashAllowed(command)) {
+    return `ERRO: Comando '${command.slice(0, 80)}' não está na lista de comandos permitidos.`;
+  }
   try {
     const stdout = execSync(command, {
       encoding: "utf8",

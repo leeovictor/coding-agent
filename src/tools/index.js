@@ -36,14 +36,32 @@ export function getToolSchema(agentName) {
 }
 
 /**
+ * Verifica se uma tool é permitida para um agente.
+ * @param {string|null} agentName
+ * @param {string} toolName
+ * @returns {boolean}
+ */
+export function isToolAllowed(agentName, toolName) {
+  if (!agentName) return true;
+  const allowed = getToolNamesForAgent(agentName);
+  if (allowed === null) return true;
+  return allowed.includes(toolName);
+}
+
+/**
  * Executa uma tool pelo nome.
+ * Se agentName for informado, verifica permissão antes de executar.
  * @param {string} name
  * @param {object} args
+ * @param {string} [agentName]
  * @returns {string} resultado (sempre string, nunca lança)
  */
-export async function executeTool(name, args) {
+export async function executeTool(name, args, agentName) {
   const tool = toolRegistry[name];
   if (!tool) return `ERRO: tool '${name}' não existe.`;
+  if (agentName && !isToolAllowed(agentName, name)) {
+    return `Ferramenta bloqueada: o agente '${agentName}' não tem permissão para executar '${name}'.`;
+  }
   try {
     return await tool.execute(args ?? {});
   } catch (e) {

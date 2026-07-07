@@ -7,19 +7,21 @@ describe("runBash.execute", () => {
     expect(out).toMatch(/hello/);
   });
 
-  it("retorna erro em string para comando inexistente", () => {
+  it("comando não permitido retorna erro", () => {
     const out = execute({ command: "comando_que_nao_existe_xyz" });
+    expect(out).toMatch(/ERRO/);
+    expect(out).toMatch(/Comando/);
+    expect(out).toMatch(/não está na lista/);
+  });
+
+  it("retorna erro para exit code não-zero com comando permitido", () => {
+    const out = execute({ command: "ls /caminho/inexistente/xyz" });
     expect(out).toMatch(/ERRO/);
     expect(out).toMatch(/exit/);
   });
 
-  it("retorna erro para exit code não-zero", () => {
-    const out = execute({ command: "exit 1" });
-    expect(out).toMatch(/ERRO/);
-  });
-
-  it("retorna mensagem para comando sem saída", () => {
-    const out = execute({ command: "true" });
+  it("comando permitido sem saída retorna (sem saída)", () => {
+    const out = execute({ command: "echo -n" });
     expect(out).toMatch(/sem saída/);
   });
 

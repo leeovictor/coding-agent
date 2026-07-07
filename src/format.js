@@ -439,6 +439,19 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
           log(formatToolResult(data));
         }
         break;
+      case "tool_blocked":
+        markdownWriter.flush();
+        clearThinking();
+        flushReasoning();
+        showReasoningDuration();
+        beginGroup("tool");
+        {
+          const blockedArgs = summarizeTool(data.tool, data.args);
+          const STRIKE = "\x1b[9m";
+          const STRIKE_RESET = "\x1b[29m";
+          stdout.write(`${GRAY}-> ${data.tool} ${STRIKE}${blockedArgs}${STRIKE_RESET} ${RED}[BLOQUEADO: agente sem permissão]${RESET}\n`);
+        }
+        break;
       case "tool_confirmation":
         markdownWriter.flush();
         clearThinking();
