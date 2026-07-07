@@ -7,6 +7,9 @@ import {
   formatFinal,
   formatLoopEnd,
   formatBashOutput,
+  renderEditDiff,
+  renderPatchDiff,
+  renderWriteContent,
   createConsoleEventHandler,
 } from "../src/format.js";
 
@@ -305,28 +308,174 @@ describe("createConsoleEventHandler", () => {
     expect(writes.join("")).not.toContain("*.js");
   });
 
-  it("tool_execution write_file permanece silencioso", () => {
+  it("tool_execution write_file mostra side-by-side com prefixo +", () => {
     const calls = [];
     const writes = [];
     const handler = createConsoleEventHandler({
       log: (s) => calls.push(s),
       stdout: { write: (s) => writes.push(s) },
     });
-    handler("tool_execution", { tool: "write_file", resultado: "ok", args: { path: "a.txt" } });
+    handler("tool_execution", {
+      tool: "write_file",
+      resultado: "ok",
+      args: { path: "a.txt", content: "linha1\nlinha2" },
+    });
+    const out = writes.join("");
+    expect(out).toContain("← Write file a.txt");
+    expect(out).toContain("+ linha1");
+    expect(out).toContain("+ linha2");
     expect(calls).toHaveLength(0);
-    expect(writes).toHaveLength(0);
   });
 
-  it("tool_execution edit_file permanece silencioso", () => {
+  it("tool_execution edit_file mostra side-by-side diff", () => {
     const calls = [];
     const writes = [];
     const handler = createConsoleEventHandler({
       log: (s) => calls.push(s),
       stdout: { write: (s) => writes.push(s) },
     });
-    handler("tool_execution", { tool: "edit_file", resultado: "ok", args: { filePath: "a.txt" } });
+    handler("tool_execution", {
+      tool: "edit_file",
+      resultado: "ok",
+      args: {
+        filePath: "a.txt",
+        oldString: "const x = 1;\nconst y = 2;",
+        newString: "const x = 1;\nconst y = 3;",
+      },
+    });
+    const out = writes.join("");
+    expect(out).toContain("← Edit file a.txt");
+    expect(out).toContain("* const x = 1;");
+    expect(out).toContain("- const y = 2;");
+    expect(out).toContain("+ const y = 3;");
     expect(calls).toHaveLength(0);
-    expect(writes).toHaveLength(0);
+  });
+
+  it("tool_execution patch_file mostra side-by-side diff dos hunks", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "patch_file",
+      resultado: "ok",
+      args: {
+        filePath: "b.txt",
+        hunks: "@@ -1,3 +1,3 @@\n context\n-removed\n+added",
+      },
+    });
+    const out = writes.join("");
+    expect(out).toContain("← Patch file b.txt");
+    expect(out).toContain("* context");
+    expect(out).toContain("- removed");
+    expect(out).toContain("+ added");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("tool_execution edit_file com oldString == newString mostra so contexto", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "edit_file",
+      resultado: "ok",
+      args: {
+        filePath: "c.txt",
+        oldString: "const a = 1;\nconst b = 2;",
+        newString: "const a = 1;\nconst b = 2;",
+      },
+    });
+    const out = writes.join("");
+    expect(out).toContain("← Edit file c.txt");
+    expect(out).toContain("* const a = 1;");
+    expect(out).toContain("* const b = 2;");
+    expect(out).not.toContain("  - ");
+    expect(out).not.toContain("  + ");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("tool_execution edit_file com oldString vazio mostra so adicoes", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "edit_file",
+      resultado: "ok",
+      args: {
+        filePath: "d.txt",
+        oldString: "",
+        newString: "const z = 9;",
+      },
+    });
+    const out = writes.join("");
+    expect(out).toContain("← Edit file d.txt");
+    expect(out).toContain("+ const z = 9;");
+    expect(out).not.toContain("  - ");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("tool_execution edit_file com newString vazio mostra so remocoes", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "edit_file",
+      resultado: "ok",
+      args: {
+        filePath: "e.txt",
+        oldString: "const w = 8;",
+        newString: "",
+      },
+    });
+    const out = writes.join("");
+    expect(out).toContain("← Edit file e.txt");
+    expect(out).toContain("- const w = 8;");
+    expect(out).not.toContain("  + ");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("tool_execution renderiza diff com multiplas mudancas intercaladas", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "edit_file",
+      resultado: "ok",
+      args: {
+        filePath: "f.txt",
+        oldString: "a\nb\nc\nd\ne",
+        newString: "a\nx\nc\ny\ne",
+      },
+    });
+    const out = writes.join("");
+    expect(out).toContain("← Edit file f.txt");
+    // a: same
+    expect(out).toContain("* a");
+    // b → x: removed + added
+    expect(out).toContain("- b");
+    expect(out).toContain("+ x");
+    // c: same
+    expect(out).toContain("* c");
+    // d → y: removed + added
+    expect(out).toContain("- d");
+    expect(out).toContain("+ y");
+    // e: same
+    expect(out).toContain("* e");
+    expect(calls).toHaveLength(0);
   });
 
   it("tool_execution read_file mostra => Read", () => {
@@ -615,5 +764,128 @@ describe("createConsoleEventHandler", () => {
     stdin.emit("keypress", null, { ctrl: true, name: "c" });
     expect(exitSpy).toHaveBeenCalledWith(0);
     exitSpy.mockRestore();
+  });
+});
+
+describe("renderEditDiff", () => {
+  it("renderiza side-by-side com prefixos e header", () => {
+    const out = renderEditDiff({
+      filePath: "src/x.js",
+      oldString: "foo\nbar",
+      newString: "foo\nbaz",
+    });
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("← Edit file src/x.js");
+    expect(stripped).toContain("* foo");
+    expect(stripped).toContain("- bar");
+    expect(stripped).toContain("+ baz");
+  });
+
+  it("lida com args vazios", () => {
+    const out = renderEditDiff({});
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("← Edit file ?");
+  });
+
+  it("oldString == newString mostra tudo com *", () => {
+    const out = renderEditDiff({
+      filePath: "z.js",
+      oldString: "a\nb",
+      newString: "a\nb",
+    });
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("* a");
+    expect(stripped).toContain("* b");
+    expect(stripped).not.toContain("  - ");
+    expect(stripped).not.toContain("  + ");
+  });
+
+  it("oldString vazio mostra tudo com +", () => {
+    const out = renderEditDiff({
+      filePath: "n.js",
+      oldString: "",
+      newString: "nova\nlinha",
+    });
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("+ nova");
+    expect(stripped).toContain("+ linha");
+    expect(stripped).not.toContain("  - ");
+    expect(stripped).not.toContain("  * ");
+  });
+
+  it("newString vazio mostra tudo com -", () => {
+    const out = renderEditDiff({
+      filePath: "r.js",
+      oldString: "velha",
+      newString: "",
+    });
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("- velha");
+    expect(stripped).not.toContain("  + ");
+  });
+});
+
+describe("renderPatchDiff", () => {
+  it("renderiza hunks como side-by-side", () => {
+    const out = renderPatchDiff({
+      filePath: "src/agent.js",
+      hunks: "@@ -1,3 +1,3 @@\n context\n-removed\n+added",
+    });
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("← Patch file src/agent.js");
+    expect(stripped).toContain("* context");
+    expect(stripped).toContain("- removed");
+    expect(stripped).toContain("+ added");
+  });
+
+  it("lida com hunks vazios", () => {
+    const out = renderPatchDiff({ filePath: "x.js", hunks: "" });
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("← Patch file x.js");
+  });
+
+  it("lida com args vazios", () => {
+    const out = renderPatchDiff({});
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("← Patch file ?");
+  });
+
+  it("renderiza hunks com multiplas linhas de cada tipo", () => {
+    const out = renderPatchDiff({
+      filePath: "m.js",
+      hunks: "@@ -1,4 +1,5 @@\n ctx1\n-old1\n-old2\n+new1\n+new2\n ctx2",
+    });
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("* ctx1");
+    expect(stripped).toContain("- old1");
+    expect(stripped).toContain("- old2");
+    expect(stripped).toContain("+ new1");
+    expect(stripped).toContain("+ new2");
+    expect(stripped).toContain("* ctx2");
+  });
+});
+
+describe("renderWriteContent", () => {
+  it("renderiza conteudo com prefixo +", () => {
+    const out = renderWriteContent({
+      path: "novo.js",
+      content: "const a = 1;\nconst b = 2;",
+    });
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("← Write file novo.js");
+    expect(stripped).toContain("+ const a = 1;");
+    expect(stripped).toContain("+ const b = 2;");
+  });
+
+  it("lida com args vazios", () => {
+    const out = renderWriteContent({});
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("← Write file ?");
+  });
+
+  it("conteudo vazio mostra header mas sem linhas", () => {
+    const out = renderWriteContent({ path: "vazio.js", content: "" });
+    const stripped = out.replace(/\x1b\[[0-9;]*m/g, "");
+    expect(stripped).toContain("← Write file vazio.js");
   });
 });

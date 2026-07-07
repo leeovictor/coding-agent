@@ -39,7 +39,7 @@ const FUZZY_RADIUS = 10;
  * Faz parse de um unified diff string em um array de hunks.
  * Cada hunk: { startLine, lines: [{prefix, content}] }
  */
-function parseHunks(hunksStr) {
+export function parseHunks(hunksStr) {
   const lines = hunksStr.split("\n");
   const hunks = [];
   let current = null;

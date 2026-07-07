@@ -1,6 +1,7 @@
 import { emitKeypressEvents } from "node:readline";
 import { summarizeTool } from "./tools/index.js";
 import { createMarkdownWriter } from "./markdownWriter.js";
+import { parseHunks } from "./tools/patch.js";
 
 const PREVIEW_LEN = 500;
 
@@ -8,6 +9,101 @@ function preview(s, len = PREVIEW_LEN) {
   const str = String(s ?? "");
   if (str.length <= len) return str;
   return str.slice(0, len) + `\u2026 [+${str.length - len} chars]`;
+}
+
+function lcsAlign(oldLines, newLines) {
+  const m = oldLines.length;
+  const n = newLines.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (oldLines[i - 1] === newLines[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  const result = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      result.unshift({ type: "same", left: oldLines[i - 1], right: newLines[j - 1] });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      result.unshift({ type: "added", left: "", right: newLines[j - 1] });
+      j--;
+    } else {
+      result.unshift({ type: "removed", left: oldLines[i - 1], right: "" });
+      i--;
+    }
+  }
+
+  return result;
+}
+
+function renderUnified(header, chunks) {
+  const cleanHeader = header.replace(/\x1b\[[0-9;]*m/g, "");
+  const top = `${GRAY}┌─ ${header}${RESET}${GRAY} ${"─".repeat(Math.max(2, DIFF_WIDTH - cleanHeader.length - 4))}${RESET}`;
+
+  const bodyLines = [];
+  for (const chunk of chunks) {
+    const type = chunk.type;
+    const prefix = type === "same" ? "*" : type === "removed" ? "-" : "+";
+    const color = type === "same" ? GRAY : type === "removed" ? RED : GREEN;
+    const content = type === "added" ? chunk.right : chunk.left;
+    bodyLines.push(`${GRAY}│${RESET}  ${color}${prefix} ${content}${RESET}`);
+  }
+  const body = bodyLines.join("\n");
+
+  const footer = `${GRAY}└${"─".repeat(DIFF_WIDTH)}${RESET}`;
+
+  return `${top}\n${body}\n${footer}\n`;
+}
+
+export function renderEditDiff(args) {
+  const filePath = args?.filePath ?? "?";
+  const header = `${GRAY}← Edit file ${filePath}${RESET}`;
+  const oldStr = String(args?.oldString ?? "");
+  const newStr = String(args?.newString ?? "");
+  const oldLines = oldStr === "" ? [] : oldStr.split("\n");
+  const newLines = newStr === "" ? [] : newStr.split("\n");
+  const chunks = lcsAlign(oldLines, newLines);
+  return renderUnified(header, chunks);
+}
+
+export function renderPatchDiff(args) {
+  const filePath = args?.filePath ?? "?";
+  const header = `${GRAY}← Patch file ${filePath}${RESET}`;
+  const hunksStr = String(args?.hunks ?? "");
+  const parsedHunks = parseHunks(hunksStr);
+
+  const chunks = [];
+  for (const hunk of parsedHunks) {
+    for (const { prefix, content } of hunk.lines) {
+      if (prefix === " ") {
+        chunks.push({ type: "same", left: content, right: content });
+      } else if (prefix === "-") {
+        chunks.push({ type: "removed", left: content, right: "" });
+      } else if (prefix === "+") {
+        chunks.push({ type: "added", left: "", right: content });
+      }
+    }
+  }
+
+  return renderUnified(header, chunks);
+}
+
+export function renderWriteContent(args) {
+  const filePath = args?.path ?? "?";
+  const header = `${GRAY}← Write file ${filePath}${RESET}`;
+  const contentStr = String(args?.content ?? "");
+  const lines = contentStr === "" ? [] : contentStr.split("\n");
+
+  const chunks = lines.map((line) => ({ type: "added", left: "", right: line }));
+  return renderUnified(header, chunks);
 }
 
 function countMatches(result) {
@@ -60,10 +156,12 @@ export function formatLoopEnd({ motivo, iteracoes }) {
 const GRAY = "\x1b[90m";
 const ORANGE = "\x1b[38;5;208m";
 const RED = "\x1b[31m";
+const GREEN = "\x1b[32m";
 const WHITE = "\x1b[97m";
 const RESET = "\x1b[0m";
 const SPINNER_FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
 const BASH_PREVIEW_LEN = 2000;
+const DIFF_WIDTH = 60;
 
 export function formatBashOutput({ resultado, duration_ms }) {
   const text = String(resultado ?? "");
@@ -277,22 +375,13 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         flushReasoning();
         showReasoningDuration();
         beginGroup("tool");
-        if (data.tool === "write_file") {
-          const path = data.args?.path ?? data.error ?? "?";
-          stdout.write(`${GRAY}-> Write file ${path}${RESET}\n`);
-        } else if (data.tool === "edit_file") {
-          const path = data.args?.filePath ?? data.error ?? "?";
-          stdout.write(`${GRAY}-> Edit file ${path}${RESET}\n`);
-        } else if (data.tool === "patch_file") {
-          const path = data.args?.filePath ?? data.error ?? "?";
-          stdout.write(`${GRAY}-> Patch file ${path}${RESET}\n`);
-        } else if (data.tool === "run_bash") {
+        if (data.tool === "run_bash") {
           const cmd = data.args?.command ?? data.error ?? "?";
           stdout.write(`${GRAY}-> Run bash ${cmd}${RESET}\n`);
         } else if (data.tool === "question") {
           const qty = data.args?.questions?.length ?? "?";
           stdout.write(`${GRAY}-> Question (${qty} pergunta(s))${RESET}\n`);
-        } else if (data.tool === "read_file" || data.tool === "grep" || data.tool === "glob" || data.tool === "todos") {
+        } else if (data.tool === "read_file" || data.tool === "grep" || data.tool === "glob" || data.tool === "todos" || data.tool === "write_file" || data.tool === "edit_file" || data.tool === "patch_file") {
           // exibido apenas no tool_execution
         } else {
           log(formatDecision(data));
@@ -337,7 +426,16 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
             // fallback: mostra o raw
             stdout.write(`  ${String(data.resultado).slice(0, 200)}\n`);
           }
-        } else if (data.tool !== "write_file" && data.tool !== "edit_file" && data.tool !== "patch_file") {
+        } else if (data.tool === "edit_file") {
+          stdout.write(`\r\x1b[1A\x1b[0J\n`);
+          stdout.write(renderEditDiff(data.args));
+        } else if (data.tool === "patch_file") {
+          stdout.write(`\r\x1b[1A\x1b[0J\n`);
+          stdout.write(renderPatchDiff(data.args));
+        } else if (data.tool === "write_file") {
+          stdout.write(`\r\x1b[1A\x1b[0J\n`);
+          stdout.write(renderWriteContent(data.args));
+        } else {
           log(formatToolResult(data));
         }
         break;
