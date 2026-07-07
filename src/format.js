@@ -285,7 +285,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         } else if (data.tool === "run_bash") {
           const cmd = data.args?.command ?? data.error ?? "?";
           stdout.write(`${GRAY}-> Run bash ${cmd}${RESET}\n`);
-        } else if (data.tool === "read_file" || data.tool === "grep" || data.tool === "glob") {
+        } else if (data.tool === "read_file" || data.tool === "grep" || data.tool === "glob" || data.tool === "todos") {
           // exibido apenas no tool_execution
         } else {
           log(formatDecision(data));
@@ -307,6 +307,12 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         } else if (data.tool === "glob") {
           const count = countMatches(data.resultado);
           stdout.write(`${GRAY}* Glob "${data.args?.pattern ?? "?"}" in ${data.args?.path ?? "."} (${count} matches)${RESET}\n`);
+        } else if (data.tool === "todos") {
+          stdout.write(`${GRAY}* Todos atualizados${RESET}\n`);
+          const lines = String(data.resultado ?? "").split("\n");
+          for (const line of lines) {
+            stdout.write(`  ${line}\n`);
+          }
         } else if (data.tool !== "write_file" && data.tool !== "edit_file" && data.tool !== "patch_file") {
           log(formatToolResult(data));
         }

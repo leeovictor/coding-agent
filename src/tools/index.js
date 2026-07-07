@@ -5,6 +5,7 @@ import * as editFile from "./edit.js";
 import * as patchFile from "./patch.js";
 import * as grep from "./grep.js";
 import * as glob from "./glob.js";
+import * as todos from "./todos.js";
 
 export const toolRegistry = {
   read_file: { schema: readFile.schema, execute: readFile.execute, sensitive: readFile.sensitive, summarize: readFile.summarize },
@@ -14,6 +15,7 @@ export const toolRegistry = {
   patch_file: { schema: patchFile.schema, execute: patchFile.execute, sensitive: patchFile.sensitive, summarize: patchFile.summarize, shouldConfirm: patchFile.shouldConfirm },
   grep: { schema: grep.schema, execute: grep.execute, sensitive: grep.sensitive, summarize: grep.summarize },
   glob: { schema: glob.schema, execute: glob.execute, sensitive: glob.sensitive, summarize: glob.summarize },
+  todos: { schema: todos.schema, execute: todos.execute, sensitive: todos.sensitive, summarize: todos.summarize },
 };
 
 /**
