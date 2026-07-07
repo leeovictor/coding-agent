@@ -1,4 +1,4 @@
-import { createInterface } from "node:readline";
+import { confirm as inquirerConfirm } from "@inquirer/prompts";
 
 const YES_INPUTS = new Set(["y", "Y", "yes", "YES", "s", "S", "sim", "SIM", "Sim"]);
 
@@ -12,29 +12,24 @@ export function createConfirm(deps = {}) {
   const output = deps.output ?? console.log;
   const formatConfirmation = deps.formatConfirmation ?? null;
 
-  let rl = null;
-  function getReadline() {
-    if (!rl) {
-      rl = createInterface({ input: process.stdin, output: process.stderr });
+  function getMessage(toolName, args, iteracao) {
+    if (formatConfirmation) {
+      return formatConfirmation({ iteracao, tool: toolName, args });
     }
-    return rl;
-  }
-
-  function ask(question) {
-    if (input) {
-      return Promise.resolve(input());
-    }
-    return new Promise((resolve) => {
-      const r = getReadline();
-      r.question(question, (answer) => resolve(answer));
-    });
+    return `${toolName}: ${JSON.stringify(args)}`;
   }
 
   return async function confirm(toolName, args, iteracao) {
-    if (formatConfirmation) {
-      output(formatConfirmation({ iteracao, tool: toolName, args }));
+    const message = getMessage(toolName, args, iteracao);
+
+    if (input) {
+      if (formatConfirmation) {
+        output(message);
+      }
+      const answer = await input();
+      return isYes(answer);
     }
-    const answer = await ask("> ");
-    return isYes(answer);
+
+    return inquirerConfirm({ message });
   };
 }

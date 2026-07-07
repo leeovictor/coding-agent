@@ -64,10 +64,7 @@ export async function runRepl() {
   let rl = createRl();
   let question = makeQuestion(rl);
 
-  const confirm = createConfirm({
-    formatConfirmation,
-    input: () => makeQuestion(rl)("> "),
-  });
+  const confirm = createConfirm({ formatConfirmation });
 
   console.log(`Modelo: ${currentModel}`);
   if (currentReasoningEffort) console.log(`Reasoning effort: ${currentReasoningEffort}`);

@@ -129,18 +129,18 @@ export function formatToolResult({ iteracao, tool, resultado, duration_ms }) {
 
 export function formatConfirmation({ iteracao, tool, args }) {
   if (tool === "write_file") {
-    return `${RED}? Write file ${args.path} (y/n):${RESET}`;
+    return `Write file ${args.path}`;
   }
   if (tool === "edit_file") {
-    return `${RED}? Edit file ${args.filePath} (y/n):${RESET}`;
+    return `Edit file ${args.filePath}`;
   }
   if (tool === "patch_file") {
-    return `${RED}? Patch file ${args.filePath} (y/n):${RESET}`;
+    return `Patch file ${args.filePath}`;
   }
   if (tool === "run_bash") {
-    return `${RED}? Run bash ${args.command} (y/n):${RESET}`;
+    return `Run bash ${args.command}`;
   }
-  return `${RED}[iter ${iteracao}] ? confirmar ${tool} ${JSON.stringify(args)} (y/n):${RESET}`;
+  return `[iter ${iteracao}] confirmar ${tool} ${JSON.stringify(args)}`;
 }
 
 export function formatFinal(content) {
@@ -445,7 +445,6 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         flushReasoning();
         showReasoningDuration();
         beginGroup("tool");
-        log(formatConfirmation(data));
         break;
       case "final_content":
         markdownWriter.flush();

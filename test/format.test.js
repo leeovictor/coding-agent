@@ -66,14 +66,12 @@ describe("formatConfirmation", () => {
   it("write_file mostra caminho de forma leg\u00edvel", () => {
     const out = formatConfirmation({ iteracao: 1, tool: "write_file", args: { path: "a" } });
     expect(out).toMatch(/Write file a/);
-    expect(out).toMatch(/y\/n/);
     expect(out).not.toMatch(/confirmar/);
   });
 
   it("run_bash mostra comando de forma leg\u00edvel", () => {
     const out = formatConfirmation({ iteracao: 1, tool: "run_bash", args: { command: "ls -la" } });
     expect(out).toMatch(/Run bash ls -la/);
-    expect(out).toMatch(/y\/n/);
     expect(out).not.toMatch(/confirmar/);
   });
 });
