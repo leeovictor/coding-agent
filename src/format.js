@@ -10,6 +10,13 @@ function preview(s, len = PREVIEW_LEN) {
   return str.slice(0, len) + `\u2026 [+${str.length - len} chars]`;
 }
 
+function countMatches(result) {
+  const str = String(result ?? "");
+  if (!str || str.startsWith("ERRO") || str.startsWith("Nenhum")) return 0;
+  const lines = str.split("\n").filter(l => l && !l.startsWith("..."));
+  return lines.length;
+}
+
 export function formatDecision({ iteracao, tool, args, error }) {
   const argsStr = error
     ? `(args inv\u00e1lidos: ${error})`
@@ -101,9 +108,9 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     prevGroup = name;
   }
 
-  function startThinking() {
+  function startThinking(label) {
     if (thinkingActive) return;
-    thinkingLabel = "Pensando...";
+    thinkingLabel = label ?? "Aguardando resposta...";
     reasoningHintShown = false;
     stdout.write(`${ORANGE}\u280b ${thinkingLabel}${RESET}`);
     thinkingActive = true;
@@ -111,7 +118,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     if (stdout.isTTY !== false) {
       thinkingTimer = setInterval(() => {
         frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
-        stdout.write(`\r${ORANGE}${SPINNER_FRAMES[frameIdx]} ${thinkingLabel}${RESET}`);
+        stdout.write(`\r\x1b[2K${ORANGE}${SPINNER_FRAMES[frameIdx]} ${thinkingLabel}${RESET}`);
       }, 80);
     }
   }
@@ -199,14 +206,15 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         stdout.write("\n");
         spinnerLineBlank = false;
         prevGroup = "reasoning";
-        startThinking();
+        startThinking("Aguardando resposta...");
         break;
       case "token":
         if (data.type === "reasoning") {
           reasoningBuffer += data.text;
           if (reasoningStart === null) reasoningStart = Date.now();
           if (!showReasoning) {
-            if (!reasoningHintShown && thinkingActive) {
+            if (thinkingActive) {
+              thinkingLabel = "Pensando...";
               reasoningHintShown = true;
             }
           } else {
@@ -265,10 +273,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         flushReasoning();
         showReasoningDuration();
         beginGroup("tool");
-        if (data.tool === "read_file") {
-          const path = data.args?.path ?? data.error ?? "?";
-          stdout.write(`${GRAY}-> Read file ${path}${RESET}\n`);
-        } else if (data.tool === "write_file") {
+        if (data.tool === "write_file") {
           const path = data.args?.path ?? data.error ?? "?";
           stdout.write(`${GRAY}-> Write file ${path}${RESET}\n`);
         } else if (data.tool === "edit_file") {
@@ -280,6 +285,8 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         } else if (data.tool === "run_bash") {
           const cmd = data.args?.command ?? data.error ?? "?";
           stdout.write(`${GRAY}-> Run bash ${cmd}${RESET}\n`);
+        } else if (data.tool === "read_file" || data.tool === "grep" || data.tool === "glob") {
+          // exibido apenas no tool_execution
         } else {
           log(formatDecision(data));
         }
@@ -292,7 +299,15 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         beginGroup("tool");
         if (data.tool === "run_bash") {
           stdout.write(formatBashOutput(data) + "\n");
-        } else if (data.tool !== "read_file" && data.tool !== "write_file" && data.tool !== "edit_file" && data.tool !== "patch_file") {
+        } else if (data.tool === "read_file") {
+          stdout.write(`${GRAY}=> Read ${data.args?.path ?? "?"}${RESET}\n`);
+        } else if (data.tool === "grep") {
+          const count = countMatches(data.resultado);
+          stdout.write(`${GRAY}* Grep "${data.args?.pattern ?? "?"}" in ${data.args?.path ?? "."} (${count} matches)${RESET}\n`);
+        } else if (data.tool === "glob") {
+          const count = countMatches(data.resultado);
+          stdout.write(`${GRAY}* Glob "${data.args?.pattern ?? "?"}" in ${data.args?.path ?? "."} (${count} matches)${RESET}\n`);
+        } else if (data.tool !== "write_file" && data.tool !== "edit_file" && data.tool !== "patch_file") {
           log(formatToolResult(data));
         }
         break;

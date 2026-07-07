@@ -156,7 +156,7 @@ describe("createConsoleEventHandler", () => {
     expect(writes.join("")).toContain("\n");
   });
 
-  it("request mostra indicador Pensando... (response silencioso)", () => {
+  it("request mostra indicador Aguardando resposta... (response silencioso)", () => {
     const calls = [];
     const writes = [];
     const handler = createConsoleEventHandler({
@@ -167,7 +167,7 @@ describe("createConsoleEventHandler", () => {
     handler("response", {});
     expect(calls).toHaveLength(0);
     expect(writes).toHaveLength(2);
-    expect(writes[1]).toContain("Pensando...");
+    expect(writes[1]).toContain("Aguardando resposta...");
     expect(writes[1]).toContain("\x1b[38;5;208m");
   });
 
@@ -177,10 +177,10 @@ describe("createConsoleEventHandler", () => {
     handler("request", { iteracao: 1 });
     handler("token", { type: "content", text: "ok\n" });
     const output = writes.join("");
-    expect(output).toContain("Pensando...");
+    expect(output).toContain("Aguardando resposta...");
     expect(output).toContain("ok");
     expect(output).toContain("\r");
-    expect(output.indexOf("ok")).toBeGreaterThan(output.lastIndexOf("Pensando..."));
+    expect(output.indexOf("ok")).toBeGreaterThan(output.lastIndexOf("Aguardando resposta..."));
   });
 
   it("request em TTY rotaciona frames do spinner", () => {
@@ -190,7 +190,7 @@ describe("createConsoleEventHandler", () => {
       stdout: { write: (s) => writes.push(s), isTTY: true },
     });
     handler("request", { iteracao: 1 });
-    expect(writes.join("")).toContain("\u280b Pensando...");
+    expect(writes.join("")).toContain("\u280b Aguardando resposta...");
     vi.advanceTimersByTime(80);
     expect(writes.join("")).toContain("\u2819");
     vi.advanceTimersByTime(80);
@@ -269,7 +269,79 @@ describe("createConsoleEventHandler", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("tool_execution read_file não escreve nada", () => {
+  it("tool_decision read_file suprimido (exibido só no tool_execution)", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_decision", { tool: "read_file", args: { path: "a.txt" } });
+    expect(calls).toHaveLength(0);
+    expect(writes.join("")).not.toContain("Read file");
+  });
+
+  it("tool_decision grep suprimido (exibido só no tool_execution)", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_decision", { tool: "grep", args: { pattern: "foo" } });
+    expect(calls).toHaveLength(0);
+    expect(writes.join("")).not.toContain("foo");
+  });
+
+  it("tool_decision glob suprimido (exibido só no tool_execution)", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_decision", { tool: "glob", args: { pattern: "*.js" } });
+    expect(calls).toHaveLength(0);
+    expect(writes.join("")).not.toContain("*.js");
+  });
+
+  it("tool_execution write_file permanece silencioso", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", { tool: "write_file", resultado: "ok", args: { path: "a.txt" } });
+    expect(calls).toHaveLength(0);
+    expect(writes).toHaveLength(0);
+  });
+
+  it("tool_execution edit_file permanece silencioso", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", { tool: "edit_file", resultado: "ok", args: { filePath: "a.txt" } });
+    expect(calls).toHaveLength(0);
+    expect(writes).toHaveLength(0);
+  });
+
+  it("tool_execution read_file mostra => Read", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", { tool: "read_file", resultado: "conteudo", args: { path: "a.txt" } });
+    expect(calls).toHaveLength(0);
+    expect(writes.join("")).toContain("=> Read a.txt");
+  });
+
+  it("tool_execution read_file sem args mostra ?", () => {
     const calls = [];
     const writes = [];
     const handler = createConsoleEventHandler({
@@ -278,7 +350,159 @@ describe("createConsoleEventHandler", () => {
     });
     handler("tool_execution", { tool: "read_file", resultado: "conteudo" });
     expect(calls).toHaveLength(0);
-    expect(writes).toHaveLength(0);
+    expect(writes.join("")).toContain("=> Read ?");
+  });
+
+  it("tool_execution grep mostra * Grep com count", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "grep",
+      args: { pattern: "foo", path: "src" },
+      resultado: "a.js:1: foo\nb.js:2: foo",
+    });
+    expect(calls).toHaveLength(0);
+    const out = writes.join("");
+    expect(out).toContain('* Grep "foo" in src (2 matches)');
+  });
+
+  it("tool_execution grep 0 matches mostra 0 count", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "grep",
+      args: { pattern: "foo", path: "src" },
+      resultado: "Nenhuma correspondência encontrada.",
+    });
+    expect(calls).toHaveLength(0);
+    const out = writes.join("");
+    expect(out).toContain('* Grep "foo" in src (0 matches)');
+  });
+
+  it("tool_execution grep com erro mostra 0 count", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "grep",
+      args: { pattern: "foo", path: "src" },
+      resultado: "ERRO: expressão regular inválida 'foo'",
+    });
+    expect(calls).toHaveLength(0);
+    const out = writes.join("");
+    expect(out).toContain('* Grep "foo" in src (0 matches)');
+  });
+
+  it("tool_execution grep truncado ignora linha do truncamento no count", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "grep",
+      args: { pattern: "foo", path: "src" },
+      resultado: "a.js:1: foo\nb.js:2: foo\n\n... [truncado: limite de 200 correspondências atingido]",
+    });
+    expect(calls).toHaveLength(0);
+    const out = writes.join("");
+    expect(out).toContain('* Grep "foo" in src (2 matches)');
+  });
+
+  it("tool_execution glob mostra * Glob com count", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "glob",
+      args: { pattern: "*.js", path: "lib" },
+      resultado: "a.js\nb.js",
+    });
+    expect(calls).toHaveLength(0);
+    const out = writes.join("");
+    expect(out).toContain('* Glob "*.js" in lib (2 matches)');
+  });
+
+  it("tool_execution glob sem path usa '.'", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "glob",
+      args: { pattern: "*.js" },
+      resultado: "a.js",
+    });
+    expect(calls).toHaveLength(0);
+    const out = writes.join("");
+    expect(out).toContain('* Glob "*.js" in . (1 matches)');
+  });
+
+  it("tool_execution glob com erro mostra 0 count", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "glob",
+      args: { pattern: "*.js" },
+      resultado: "ERRO: pattern inválido",
+    });
+    expect(calls).toHaveLength(0);
+    const out = writes.join("");
+    expect(out).toContain('* Glob "*.js" in . (0 matches)');
+  });
+
+  it("tool_execution glob 0 matches mostra 0 count", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "glob",
+      args: { pattern: "*.xyz" },
+      resultado: "Nenhum arquivo encontrado.",
+    });
+    expect(calls).toHaveLength(0);
+    const out = writes.join("");
+    expect(out).toContain('* Glob "*.xyz" in . (0 matches)');
+  });
+
+  it("tool_execution generic tool usa formatToolResult (log)", () => {
+    const calls = [];
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      log: (s) => calls.push(s),
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("tool_execution", {
+      tool: "some_tool",
+      resultado: "result",
+      duration_ms: 10,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatch(/some_tool/);
   });
 
   it("reasoning oculto nao aparece mas ainda pode ser revelado com tecla r", () => {

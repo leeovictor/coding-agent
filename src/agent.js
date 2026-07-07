@@ -57,8 +57,9 @@ export async function runAgent(opts) {
         if (choice?.delta) {
           const delta = choice.delta;
           reducer.next(delta);
-          if (delta.reasoning) {
-            onEvent("token", { type: "reasoning", text: delta.reasoning });
+          const reasoningText = delta.reasoning || delta.reasoning_content;
+          if (reasoningText) {
+            onEvent("token", { type: "reasoning", text: reasoningText });
           }
           if (delta.content) {
             onEvent("token", { type: "content", text: delta.content });

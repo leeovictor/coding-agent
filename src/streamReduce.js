@@ -1,6 +1,7 @@
 export function reduceDelta(acc, delta) {
   if (delta.content) acc.content += delta.content;
-  if (delta.reasoning) acc.reasoning += delta.reasoning;
+  const reasoningText = delta.reasoning || delta.reasoning_content;
+  if (reasoningText) acc.reasoning += reasoningText;
   if (delta.tool_calls) {
     for (const tc of delta.tool_calls) {
       let entry = acc.tool_calls[tc.index];
