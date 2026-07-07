@@ -220,13 +220,15 @@ describe("createConsoleEventHandler", () => {
     expect(output).toContain("Hello");
   });
 
-  it("token content sem \\n acumula ate flush", () => {
+  it("token content sem \\n emite raw imediatamente e formata no flush", () => {
     const writes = [];
     const handler = createConsoleEventHandler({ stdout: { write: (s) => writes.push(s) } });
     handler("token", { type: "content", text: "buffered" });
-    expect(writes.join("")).not.toContain("buffered");
-    handler("final_content", { content: "buffered" });
     expect(writes.join("")).toContain("buffered");
+    handler("final_content", { content: "buffered" });
+    const out = writes.join("");
+    expect(out).toContain("buffered");
+    expect(out).toContain("\r\x1b[2K");
   });
 
   it("reasoning oculto + content escreve apenas content", () => {

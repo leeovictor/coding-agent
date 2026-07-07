@@ -77,10 +77,11 @@ describe("createMarkdownWriter", () => {
   });
 
   describe("buffer e flush", () => {
-    it("push sem \\n acumula buffer", () => {
+    it("push sem \\n emite texto cru imediatamente", () => {
       const { writer, writes } = mkWriter();
       writer.push("hello");
-      expect(writes).toHaveLength(0);
+      expect(writes).toHaveLength(1);
+      expect(writes[0]).toBe("hello");
     });
 
     it("push com \\n emite linha completa", () => {
@@ -92,11 +93,13 @@ describe("createMarkdownWriter", () => {
       expect(out).toContain("\n");
     });
 
-    it("flush emite buffer pendente", () => {
+    it("flush emite buffer pendente formatado", () => {
       const { writer, writes } = mkWriter();
       writer.push("pending");
-      expect(writes).toHaveLength(0);
+      expect(writes).toHaveLength(1);
+      expect(writes[0]).toBe("pending");
       writer.flush();
+      expect(writes.join("")).toContain("\r\x1b[2K");
       expect(writes.join("")).toContain("pending");
     });
 

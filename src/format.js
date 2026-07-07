@@ -53,6 +53,7 @@ export function formatLoopEnd({ motivo, iteracoes }) {
 const GRAY = "\x1b[90m";
 const ORANGE = "\x1b[38;5;208m";
 const RED = "\x1b[31m";
+const WHITE = "\x1b[97m";
 const RESET = "\x1b[0m";
 const SPINNER_FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
 const BASH_PREVIEW_LEN = 2000;
@@ -241,21 +242,21 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
           flushReasoning();
           showReasoningDuration();
           beginGroup("preparing");
-          stdout.write("Preparando escrita...\n");
+          stdout.write(`${WHITE}~ Preparando escrita...${RESET}\n`);
         } else if (data.tool === "edit_file") {
           markdownWriter.flush();
           clearThinking();
           flushReasoning();
           showReasoningDuration();
           beginGroup("preparing");
-          stdout.write("Preparando edi\u00e7\u00e3o...\n");
+          stdout.write(`${WHITE}~ Preparando edição...${RESET}\n`);
         } else if (data.tool === "patch_file") {
           markdownWriter.flush();
           clearThinking();
           flushReasoning();
           showReasoningDuration();
           beginGroup("preparing");
-          stdout.write("Preparando patch...\n");
+          stdout.write(`${WHITE}~ Preparando patch...${RESET}\n`);
         }
         break;
       case "tool_decision":

@@ -66,6 +66,7 @@ export function createMarkdownWriter({ stdout }) {
   let inCodeFence = false;
   let codeFenceMarker = "";
   let codeFenceLen = 0;
+  let pendingRaw = 0;
 
   function processLine(line) {
     if (!color) return line;
@@ -131,16 +132,34 @@ export function createMarkdownWriter({ stdout }) {
   function push(text) {
     buffer += text;
     const idx = buffer.lastIndexOf("\n");
-    if (idx === -1) return;
+    if (idx === -1) {
+      if (text.length > 0) {
+        stdout.write(text);
+        pendingRaw += text.length;
+      }
+      return;
+    }
+    if (pendingRaw > 0) {
+      stdout.write("\r\x1b[2K");
+      pendingRaw = 0;
+    }
     const complete = buffer.slice(0, idx);
     buffer = buffer.slice(idx + 1);
     const lines = complete.split("\n");
     for (const ln of lines) {
       flushLine(ln);
     }
+    if (buffer.length > 0) {
+      stdout.write(buffer);
+      pendingRaw = buffer.length;
+    }
   }
 
   function flush() {
+    if (pendingRaw > 0) {
+      stdout.write("\r\x1b[2K");
+      pendingRaw = 0;
+    }
     if (buffer) {
       flushLine(buffer);
       buffer = "";
@@ -148,6 +167,7 @@ export function createMarkdownWriter({ stdout }) {
   }
 
   function reset() {
+    pendingRaw = 0;
     buffer = "";
     inCodeFence = false;
     codeFenceMarker = "";

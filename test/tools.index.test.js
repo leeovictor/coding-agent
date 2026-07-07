@@ -2,13 +2,13 @@ import { describe, it, expect } from "vitest";
 import { toolRegistry, getToolSchema, executeTool, isSensitive, shouldConfirm, summarizeTool } from "../src/tools/index.js";
 
 describe("tools registry", () => {
-  it("tem exatamente 5 tools", () => {
-    expect(Object.keys(toolRegistry).sort()).toEqual(["edit_file", "patch_file", "read_file", "run_bash", "write_file"]);
+  it("tem exatamente 7 tools", () => {
+    expect(Object.keys(toolRegistry).sort()).toEqual(["edit_file", "glob", "grep", "patch_file", "read_file", "run_bash", "write_file"]);
   });
 
   it("getToolSchema retorna array no formato OpenAI", () => {
     const schemas = getToolSchema();
-    expect(schemas).toHaveLength(5);
+    expect(schemas).toHaveLength(7);
     schemas.forEach((s) => {
       expect(s.type).toBe("function");
       expect(s.function.name).toBeTruthy();
@@ -42,8 +42,20 @@ describe("tools registry", () => {
     expect(s.function.parameters.required).toEqual(["filePath", "hunks"]);
   });
 
-  it("isSensitive: read_file=false, write_file=true, edit_file=true, patch_file=true, run_bash=true", () => {
+  it("grep tem required: ['pattern']", () => {
+    const s = getToolSchema().find((s) => s.function.name === "grep");
+    expect(s.function.parameters.required).toEqual(["pattern"]);
+  });
+
+  it("glob tem required: ['pattern']", () => {
+    const s = getToolSchema().find((s) => s.function.name === "glob");
+    expect(s.function.parameters.required).toEqual(["pattern"]);
+  });
+
+  it("isSensitive: read_file=false, grep=false, glob=false, write_file=true, edit_file=true, patch_file=true, run_bash=true", () => {
     expect(isSensitive("read_file")).toBe(false);
+    expect(isSensitive("grep")).toBe(false);
+    expect(isSensitive("glob")).toBe(false);
     expect(isSensitive("write_file")).toBe(true);
     expect(isSensitive("edit_file")).toBe(true);
     expect(isSensitive("patch_file")).toBe(true);
@@ -67,6 +79,14 @@ describe("tools registry", () => {
 describe("shouldConfirm", () => {
   it("read_file nunca exige confirmação", () => {
     expect(shouldConfirm("read_file", { path: "/etc/shadow" })).toBe(false);
+  });
+
+  it("grep nunca exige confirmação", () => {
+    expect(shouldConfirm("grep", { pattern: "x", path: "/tmp" })).toBe(false);
+  });
+
+  it("glob nunca exige confirmação", () => {
+    expect(shouldConfirm("glob", { pattern: "*", path: "/tmp" })).toBe(false);
   });
 
   it("write_file exige confirmação para path fora do cwd", () => {
@@ -136,6 +156,14 @@ describe("summarizeTool", () => {
     const out = summarizeTool("run_bash", { command: long });
     expect(out).toHaveLength(81);
     expect(out).toMatch(/\u2026$/);
+  });
+
+  it("grep retorna pattern", () => {
+    expect(summarizeTool("grep", { pattern: "foo" })).toBe("foo");
+  });
+
+  it("glob retorna pattern", () => {
+    expect(summarizeTool("glob", { pattern: "**/*.js" })).toBe("**/*.js");
   });
 
   it("tool desconhecida usa fallback JSON.stringify", () => {

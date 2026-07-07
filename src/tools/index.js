@@ -3,6 +3,8 @@ import * as writeFile from "./writeFile.js";
 import * as runBash from "./runBash.js";
 import * as editFile from "./edit.js";
 import * as patchFile from "./patch.js";
+import * as grep from "./grep.js";
+import * as glob from "./glob.js";
 
 export const toolRegistry = {
   read_file: { schema: readFile.schema, execute: readFile.execute, sensitive: readFile.sensitive, summarize: readFile.summarize },
@@ -10,6 +12,8 @@ export const toolRegistry = {
   run_bash: { schema: runBash.schema, execute: runBash.execute, sensitive: runBash.sensitive, summarize: runBash.summarize, shouldConfirm: runBash.shouldConfirm },
   edit_file: { schema: editFile.schema, execute: editFile.execute, sensitive: editFile.sensitive, summarize: editFile.summarize, shouldConfirm: editFile.shouldConfirm },
   patch_file: { schema: patchFile.schema, execute: patchFile.execute, sensitive: patchFile.sensitive, summarize: patchFile.summarize, shouldConfirm: patchFile.shouldConfirm },
+  grep: { schema: grep.schema, execute: grep.execute, sensitive: grep.sensitive, summarize: grep.summarize },
+  glob: { schema: glob.schema, execute: glob.execute, sensitive: glob.sensitive, summarize: glob.summarize },
 };
 
 /**
