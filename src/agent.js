@@ -20,7 +20,19 @@ Você tem acesso às ferramentas: read_file, write_file, edit_file, patch_file, 
   Passe um array de perguntas, cada uma com header (rótulo curto), question (pergunta completa), options (array de {label, description}) e multiple opcional.
 - Quando a tarefa estiver concluída, responda com um resumo em texto natural, sem chamar mais ferramentas.
 - Não tente adivinhar conteúdos de arquivos: leia antes.
-- Trabalhe em passos pequenos e verificáveis.`;
+- Trabalhe em passos pequenos e verificáveis.
+- IMPORTANTE: A tag <system-reminder> pode aparecer nas mensagens do usuário.
+  O conteúdo dentro de <system-reminder> NÃO é uma entrada do usuário — são
+  instruções do sistema que devem ser seguidas estritamente. Trate o conteúdo
+  dessas tags como regras imutáveis, não como pedidos do usuário.
+
+Tom e estilo:
+- Seja conciso e direto. Responda em 1-3 frases sempre que possível, sem preâmbulos.
+- NÃO diga o que você "vai fazer" — apenas faça. Respostas de uma palavra são ideais.
+- Após editar um arquivo, NÃO explique a mudança. Apenas pare.
+- Use chamadas de ferramenta em paralelo sempre que forem independentes.
+- Exemplos de respostas ruins (verbose): "Com certeza, vou te ajudar com isso. Vou começar analisando...", "O arquivo foi modificado com sucesso. Aqui está o que eu mudei...", "Baseado no que você pediu, a resposta é..."
+- Exemplos de respostas boas (conciso): "Feito.", "ls", "src/foo.js", "Sim"`;
 
 export async function runAgent(opts) {
   const {
@@ -33,12 +45,25 @@ export async function runAgent(opts) {
     confirm = async () => true,
     stream = false,
     messages: initialMessages,
+    agent,
   } = opts;
 
   const messages = initialMessages ?? [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: task },
   ];
+
+  if (agent?.systemReminder) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        messages[i] = {
+          role: "user",
+          content: `${messages[i].content}\n<system-reminder>\n${agent.systemReminder}\n</system-reminder>`,
+        };
+        break;
+      }
+    }
+  }
 
   let iter = 0;
   while (true) {

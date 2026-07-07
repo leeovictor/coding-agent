@@ -420,4 +420,71 @@ describe("runAgent", () => {
     expect(result.messages[0].role).toBe("system");
     expect(result.messages[1]).toEqual({ role: "user", content: "my task" });
   });
+
+  it("runAgent com agent injeta system-reminder na user message", async () => {
+    let captured;
+    const callApi = vi.fn(async (msgs) => { captured = msgs; return textResponse("ok"); });
+    await runAgent({
+      task: "hello",
+      tools: [],
+      callApi,
+      executeTool: vi.fn(),
+      agent: { name: "build", systemReminder: "Build active" },
+    });
+    const user = captured.find((m) => m.role === "user");
+    expect(user.content).toContain("hello");
+    expect(user.content).toContain("<system-reminder>");
+    expect(user.content).toContain("Build active");
+    expect(user.content).toContain("</system-reminder>");
+  });
+
+  it("runAgent com agent plan injeta tags <system-reminder>", async () => {
+    let captured;
+    const callApi = vi.fn(async (msgs) => { captured = msgs; return textResponse("ok"); });
+    await runAgent({
+      task: "plan something",
+      tools: [],
+      callApi,
+      executeTool: vi.fn(),
+      agent: { name: "plan", systemReminder: "Planning mode. No edits." },
+    });
+    const user = captured.find((m) => m.role === "user");
+    expect(user.content).toMatch(/<system-reminder>/);
+    expect(user.content).toMatch(/<\/system-reminder>/);
+  });
+
+  it("runAgent sem agent nao injeta nada (retrocompatibilidade)", async () => {
+    let captured;
+    const callApi = vi.fn(async (msgs) => { captured = msgs; return textResponse("ok"); });
+    await runAgent({
+      task: "hello",
+      tools: [],
+      callApi,
+      executeTool: vi.fn(),
+    });
+    const user = captured.find((m) => m.role === "user");
+    expect(user.content).not.toContain("<system-reminder>");
+  });
+
+  it("runAgent com messages pre-definidas + agent injeta na ultima user message", async () => {
+    let captured;
+    const callApi = vi.fn(async (msgs) => { captured = msgs; return textResponse("ok"); });
+    const preMessages = [
+      { role: "system", content: "sys" },
+      { role: "user", content: "first question" },
+      { role: "assistant", content: "first answer" },
+      { role: "user", content: "second question" },
+    ];
+    await runAgent({
+      messages: preMessages,
+      tools: [],
+      callApi,
+      executeTool: vi.fn(),
+      agent: { name: "build", systemReminder: "Build mode" },
+    });
+    const userMsgs = captured.filter((m) => m.role === "user");
+    expect(userMsgs[0].content).toBe("first question");
+    expect(userMsgs[1].content).toContain("<system-reminder>");
+    expect(userMsgs[1].content).toContain("second question");
+  });
 });

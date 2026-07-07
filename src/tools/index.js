@@ -7,6 +7,7 @@ import * as grep from "./grep.js";
 import * as glob from "./glob.js";
 import * as todos from "./todos.js";
 import * as question from "./questions.js";
+import { getToolNamesForAgent } from "../agents.js";
 
 export const toolRegistry = {
   read_file: { schema: readFile.schema, execute: readFile.execute, sensitive: readFile.sensitive, summarize: readFile.summarize },
@@ -24,7 +25,13 @@ export const toolRegistry = {
  * Retorna o array de schemas no formato OpenAI para enviar na requisição.
  * @returns {object[]}
  */
-export function getToolSchema() {
+export function getToolSchema(agentName) {
+  if (agentName) {
+    const allowed = getToolNamesForAgent(agentName);
+    if (allowed !== null) {
+      return allowed.map((name) => toolRegistry[name]?.schema).filter(Boolean);
+    }
+  }
   return Object.values(toolRegistry).map((t) => t.schema);
 }
 

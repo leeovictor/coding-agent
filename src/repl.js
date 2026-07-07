@@ -9,6 +9,7 @@ import { selectModel } from "./commands/models.js";
 import { selectEffort } from "./commands/effort.js";
 import { promptApiKey } from "./commands/apikey.js";
 import { ensureApiKey } from "./ensureKey.js";
+import { getCurrentAgent, getCurrentAgentName, switchAgent, listAgents, agentColor, buildHelpText } from "./agents.js";
 
 const CLOSED = Symbol("closed");
 
@@ -25,6 +26,11 @@ function createRl() {
 
 function closeRl(rl) {
   rl?.close();
+}
+
+function agentPrompt() {
+  const name = getCurrentAgentName();
+  return `${agentColor(name)}${name}>\x1b[0m `;
 }
 
 export async function runRepl() {
@@ -51,7 +57,7 @@ export async function runRepl() {
   console.log(`Modo REPL. Digite /help para comandos.\n`);
 
   while (true) {
-    const line = await question("\x1b[34magent>\x1b[0m ");
+    const line = await question(agentPrompt());
     if (line === CLOSED) break;
     const trimmed = line.trim();
 
@@ -64,7 +70,30 @@ export async function runRepl() {
     }
 
     if (trimmed === "/help") {
-      console.log("Comandos: /exit, /clear, /help, /models, /effort, /api-key");
+      console.log("Comandos: /exit, /clear, /help, /models, /effort, /api-key, /agent <nome>, /agents");
+      console.log(buildHelpText());
+      continue;
+    }
+
+    if (trimmed.startsWith("/agent ")) {
+      const name = trimmed.slice(7).trim();
+      const agent = switchAgent(name);
+      if (agent.name === name) {
+        console.log(`Agente alterado para: ${agent.name}`);
+      } else {
+        console.log(`Agente '${name}' n\u00e3o encontrado. Mantendo ${getCurrentAgentName()}.`);
+      }
+      continue;
+    }
+
+    if (trimmed === "/agents") {
+      const agents = listAgents();
+      const current = getCurrentAgentName();
+      console.log("Agentes dispon\u00edveis:");
+      for (const a of agents) {
+        const marker = a.name === current ? " (ativo)" : "";
+        console.log(`  ${a.name}${marker} - ${a.description}`);
+      }
       continue;
     }
 
@@ -123,11 +152,12 @@ export async function runRepl() {
     try {
       const result = await runAgent({
         messages,
-        tools: getToolSchema(),
+        tools: getToolSchema(getCurrentAgentName()),
         callApi,
         executeTool,
         confirm,
         stream: true,
+        agent: getCurrentAgent(),
         onEvent: (event, data) => {
           consoleHandler(event, data);
           if (event !== "token") logger.logEvent(event, data);

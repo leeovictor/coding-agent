@@ -219,3 +219,44 @@ describe("summarizeTool", () => {
     expect(summarizeTool("unknown", { path: "foo.txt", content: "bar" })).toBe("foo.txt");
   });
 });
+
+describe("getToolSchema with agent filter", () => {
+  it("getToolSchema('build') returns all 9 schemas", async () => {
+    const { getToolSchema } = await import("../src/tools/index.js");
+    const schemas = getToolSchema("build");
+    expect(schemas).toHaveLength(9);
+    const names = schemas.map((s) => s.function.name).sort();
+    expect(names).toEqual(["edit_file", "glob", "grep", "patch_file", "question", "read_file", "run_bash", "todos", "write_file"]);
+  });
+
+  it("getToolSchema('plan') returns only 5 schemas", async () => {
+    const { getToolSchema } = await import("../src/tools/index.js");
+    const schemas = getToolSchema("plan");
+    expect(schemas).toHaveLength(5);
+  });
+
+  it("plan schemas contain read_file, grep, glob, todos, question", async () => {
+    const { getToolSchema } = await import("../src/tools/index.js");
+    const schemas = getToolSchema("plan");
+    const names = schemas.map((s) => s.function.name).sort();
+    expect(names).toEqual(["glob", "grep", "question", "read_file", "todos"]);
+  });
+
+  it("plan schemas do NOT contain write_file, edit_file, patch_file, run_bash", async () => {
+    const { getToolSchema } = await import("../src/tools/index.js");
+    const schemas = getToolSchema("plan");
+    const names = schemas.map((s) => s.function.name);
+    expect(names).not.toContain("write_file");
+    expect(names).not.toContain("edit_file");
+    expect(names).not.toContain("patch_file");
+    expect(names).not.toContain("run_bash");
+  });
+
+  it("getToolSchema() without argument maintains original behavior", async () => {
+    const { getToolSchema } = await import("../src/tools/index.js");
+    const schemas = getToolSchema();
+    expect(schemas).toHaveLength(9);
+    const names = schemas.map((s) => s.function.name).sort();
+    expect(names).toEqual(["edit_file", "glob", "grep", "patch_file", "question", "read_file", "run_bash", "todos", "write_file"]);
+  });
+});
