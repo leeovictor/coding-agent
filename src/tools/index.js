@@ -6,6 +6,7 @@ import * as patchFile from "./patch.js";
 import * as grep from "./grep.js";
 import * as glob from "./glob.js";
 import * as todos from "./todos.js";
+import * as question from "./questions.js";
 
 export const toolRegistry = {
   read_file: { schema: readFile.schema, execute: readFile.execute, sensitive: readFile.sensitive, summarize: readFile.summarize },
@@ -16,6 +17,7 @@ export const toolRegistry = {
   grep: { schema: grep.schema, execute: grep.execute, sensitive: grep.sensitive, summarize: grep.summarize },
   glob: { schema: glob.schema, execute: glob.execute, sensitive: glob.sensitive, summarize: glob.summarize },
   todos: { schema: todos.schema, execute: todos.execute, sensitive: todos.sensitive, summarize: todos.summarize },
+  question: { schema: question.schema, execute: question.execute, sensitive: question.sensitive, summarize: question.summarize },
 };
 
 /**
@@ -32,11 +34,11 @@ export function getToolSchema() {
  * @param {object} args
  * @returns {string} resultado (sempre string, nunca lança)
  */
-export function executeTool(name, args) {
+export async function executeTool(name, args) {
   const tool = toolRegistry[name];
   if (!tool) return `ERRO: tool '${name}' não existe.`;
   try {
-    return tool.execute(args ?? {});
+    return await tool.execute(args ?? {});
   } catch (e) {
     return `ERRO inesperado em '${name}': ${e.message}`;
   }

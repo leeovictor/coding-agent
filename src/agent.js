@@ -3,7 +3,7 @@ import { shouldConfirm } from "./tools/index.js";
 import { createStreamReducer } from "./streamReduce.js";
 
 export const SYSTEM_PROMPT = `Você é um agente de código que opera em um terminal.
-Você tem acesso às ferramentas: read_file, write_file, edit_file, patch_file, run_bash, grep, glob, todos.
+Você tem acesso às ferramentas: read_file, write_file, edit_file, patch_file, run_bash, grep, glob, todos, question.
 - Use read_file para inspecionar arquivos antes de decidir o que fazer.
 - Use write_file para criar ou sobrescrever arquivos.
 - Use edit_file para modificar trechos específicos de arquivos existentes sem reescrevê-los inteiros.
@@ -16,6 +16,8 @@ Você tem acesso às ferramentas: read_file, write_file, edit_file, patch_file, 
 - Use glob para encontrar arquivos por padrão glob (ex: **/*.js, src/**/*.ts). Retorna caminhos ordenados por data de modificação.
 - Use todos para criar e manter uma lista de tarefas para a sessão atual. Planeje o trabalho, divida em passos e atualize o progresso à medida que avança.
   Sempre passe a lista COMPLETA de itens no parâmetro "todos", nunca apenas os modificados. Exemplo: todos com 3 itens → passe todos os 3.
+- Use question para fazer perguntas ao usuário quando precisar de preferências, esclarecimentos ou decisões antes de prosseguir.
+  Passe um array de perguntas, cada uma com header (rótulo curto), question (pergunta completa), options (array de {label, description}) e multiple opcional.
 - Quando a tarefa estiver concluída, responda com um resumo em texto natural, sem chamar mais ferramentas.
 - Não tente adivinhar conteúdos de arquivos: leia antes.
 - Trabalhe em passos pequenos e verificáveis.`;
@@ -114,7 +116,7 @@ export async function runAgent(opts) {
             onEvent("tool_confirmation", { iteracao: iter, tool: nome, args, decisao: true });
           }
           const inicio = Date.now();
-          resultado = executeTool(nome, args);
+          resultado = await executeTool(nome, args);
           onEvent("tool_execution", {
             iteracao: iter,
             tool: nome,

@@ -285,6 +285,9 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         } else if (data.tool === "run_bash") {
           const cmd = data.args?.command ?? data.error ?? "?";
           stdout.write(`${GRAY}-> Run bash ${cmd}${RESET}\n`);
+        } else if (data.tool === "question") {
+          const qty = data.args?.questions?.length ?? "?";
+          stdout.write(`${GRAY}-> Question (${qty} pergunta(s))${RESET}\n`);
         } else if (data.tool === "read_file" || data.tool === "grep" || data.tool === "glob" || data.tool === "todos") {
           // exibido apenas no tool_execution
         } else {
@@ -312,6 +315,18 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
           const lines = String(data.resultado ?? "").split("\n");
           for (const line of lines) {
             stdout.write(`  ${line}\n`);
+          }
+        } else if (data.tool === "question") {
+          stdout.write(`${GRAY}* Respostas recebidas${RESET}\n`);
+          try {
+            const parsed = JSON.parse(data.resultado);
+            for (const item of parsed) {
+              const answer = Array.isArray(item.answer) ? item.answer.join(", ") : item.answer;
+              stdout.write(`  ${item.header}: ${answer}\n`);
+            }
+          } catch {
+            // fallback: mostra o raw
+            stdout.write(`  ${String(data.resultado).slice(0, 200)}\n`);
           }
         } else if (data.tool !== "write_file" && data.tool !== "edit_file" && data.tool !== "patch_file") {
           log(formatToolResult(data));

@@ -2,13 +2,13 @@ import { describe, it, expect } from "vitest";
 import { toolRegistry, getToolSchema, executeTool, isSensitive, shouldConfirm, summarizeTool } from "../src/tools/index.js";
 
 describe("tools registry", () => {
-  it("tem exatamente 8 tools", () => {
-    expect(Object.keys(toolRegistry).sort()).toEqual(["edit_file", "glob", "grep", "patch_file", "read_file", "run_bash", "todos", "write_file"]);
+  it("tem exatamente 9 tools", () => {
+    expect(Object.keys(toolRegistry).sort()).toEqual(["edit_file", "glob", "grep", "patch_file", "question", "read_file", "run_bash", "todos", "write_file"]);
   });
 
   it("getToolSchema retorna array no formato OpenAI", () => {
     const schemas = getToolSchema();
-    expect(schemas).toHaveLength(8);
+    expect(schemas).toHaveLength(9);
     schemas.forEach((s) => {
       expect(s.type).toBe("function");
       expect(s.function.name).toBeTruthy();
@@ -57,11 +57,17 @@ describe("tools registry", () => {
     expect(s.function.parameters.required).toEqual(["todos"]);
   });
 
-  it("isSensitive: read_file=false, grep=false, glob=false, todos=false, write_file=true, edit_file=true, patch_file=true, run_bash=true", () => {
+  it("question tem required: ['questions']", () => {
+    const s = getToolSchema().find((s) => s.function.name === "question");
+    expect(s.function.parameters.required).toEqual(["questions"]);
+  });
+
+  it("isSensitive: read_file=false, grep=false, glob=false, todos=false, question=false, write_file=true, edit_file=true, patch_file=true, run_bash=true", () => {
     expect(isSensitive("read_file")).toBe(false);
     expect(isSensitive("grep")).toBe(false);
     expect(isSensitive("glob")).toBe(false);
     expect(isSensitive("todos")).toBe(false);
+    expect(isSensitive("question")).toBe(false);
     expect(isSensitive("write_file")).toBe(true);
     expect(isSensitive("edit_file")).toBe(true);
     expect(isSensitive("patch_file")).toBe(true);
@@ -72,12 +78,12 @@ describe("tools registry", () => {
     expect(isSensitive("inexistente")).toBe(false);
   });
 
-  it("executeTool retorna erro para tool inexistente", () => {
-    expect(executeTool("nope", {})).toMatch(/não existe/);
+  it("executeTool retorna erro para tool inexistente", async () => {
+    expect(await executeTool("nope", {})).toMatch(/não existe/);
   });
 
-  it("executeTool nunca lança — captura exceção do executor", () => {
-    const out = executeTool("read_file", { path: "/caminho/que/nao/existe/xxx" });
+  it("executeTool nunca lança — captura exceção do executor", async () => {
+    const out = await executeTool("read_file", { path: "/caminho/que/nao/existe/xxx" });
     expect(out).toMatch(/ERRO/);
   });
 });
@@ -97,6 +103,10 @@ describe("shouldConfirm", () => {
 
   it("todos nunca exige confirmação", () => {
     expect(shouldConfirm("todos", { todos: [{ content: "a", status: "pending", priority: "high" }] })).toBe(false);
+  });
+
+  it("question nunca exige confirmação", () => {
+    expect(shouldConfirm("question", { questions: [{ header: "a", question: "b", options: [{ label: "c", description: "d" }] }] })).toBe(false);
   });
 
   it("write_file exige confirmação para path fora do cwd", () => {
@@ -187,6 +197,18 @@ describe("summarizeTool", () => {
 
   it("todos vazio retorna 0 itens", () => {
     expect(summarizeTool("todos", { todos: [] })).toBe("0 itens");
+  });
+
+  it("question retorna contagem de perguntas", () => {
+    const qs = [
+      { header: "a", question: "b", options: [{ label: "c", description: "d" }] },
+    ];
+    const out = summarizeTool("question", { questions: qs });
+    expect(out).toMatch(/1 pergunta/);
+  });
+
+  it("question vazio retorna 0 perguntas", () => {
+    expect(summarizeTool("question", { questions: [] })).toBe("0 perguntas");
   });
 
   it("tool desconhecida usa fallback JSON.stringify", () => {
