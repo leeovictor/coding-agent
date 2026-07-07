@@ -46,6 +46,7 @@ export async function runAgent(opts) {
     stream = false,
     messages: initialMessages,
     agent,
+    signal,
   } = opts;
 
   const messages = initialMessages ?? [
@@ -73,42 +74,55 @@ export async function runAgent(opts) {
       return { iterations: iter - 1, reason: "limite_atingido", messages };
     }
 
+    if (signal?.aborted) {
+      onEvent("loop_end", { motivo: "cancelado", iteracoes: iter - 1 });
+      return { iterations: iter - 1, reason: "cancelado", messages };
+    }
+
     onEvent("request", { iteracao: iter, modelo: null, mensagens: messages });
-    const response = await callApi(messages, tools, stream);
+    const response = await callApi(messages, tools, stream, signal);
     onEvent("response", { iteracao: iter, response });
 
     let message;
     if (stream) {
       const reducer = createStreamReducer();
       let writeFileDetected = false;
-      for await (const chunk of response) {
-        const choice = chunk.choices?.[0];
-        if (choice?.delta) {
-          const delta = choice.delta;
-          reducer.next(delta);
-          const reasoningText = delta.reasoning || delta.reasoning_content;
-          if (reasoningText) {
-            onEvent("token", { type: "reasoning", text: reasoningText });
-          }
-          if (delta.content) {
-            onEvent("token", { type: "content", text: delta.content });
-          }
-          if (!writeFileDetected && delta.tool_calls) {
-            const toolCalls = reducer.acc.tool_calls.filter(Boolean);
-            if (toolCalls.some(tc => tc.function?.name === "write_file")) {
-              onEvent("tool_preparing", { tool: "write_file" });
-              writeFileDetected = true;
+      try {
+        for await (const chunk of response) {
+          const choice = chunk.choices?.[0];
+          if (choice?.delta) {
+            const delta = choice.delta;
+            reducer.next(delta);
+            const reasoningText = delta.reasoning || delta.reasoning_content;
+            if (reasoningText) {
+              onEvent("token", { type: "reasoning", text: reasoningText });
             }
-            if (toolCalls.some(tc => tc.function?.name === "edit_file")) {
-              onEvent("tool_preparing", { tool: "edit_file" });
-              writeFileDetected = true;
+            if (delta.content) {
+              onEvent("token", { type: "content", text: delta.content });
             }
-            if (toolCalls.some(tc => tc.function?.name === "patch_file")) {
-              onEvent("tool_preparing", { tool: "patch_file" });
-              writeFileDetected = true;
+            if (!writeFileDetected && delta.tool_calls) {
+              const toolCalls = reducer.acc.tool_calls.filter(Boolean);
+              if (toolCalls.some(tc => tc.function?.name === "write_file")) {
+                onEvent("tool_preparing", { tool: "write_file" });
+                writeFileDetected = true;
+              }
+              if (toolCalls.some(tc => tc.function?.name === "edit_file")) {
+                onEvent("tool_preparing", { tool: "edit_file" });
+                writeFileDetected = true;
+              }
+              if (toolCalls.some(tc => tc.function?.name === "patch_file")) {
+                onEvent("tool_preparing", { tool: "patch_file" });
+                writeFileDetected = true;
+              }
             }
           }
         }
+      } catch (e) {
+        if (e.name === "AbortError" && signal?.aborted) {
+          onEvent("loop_end", { motivo: "cancelado", iteracoes: iter });
+          return { iterations: iter, reason: "cancelado", messages };
+        }
+        throw e;
       }
       message = reducer.getFinalMessage();
     } else {
@@ -161,6 +175,12 @@ export async function runAgent(opts) {
 
         messages.push(buildToolResultMessage(tc.id, resultado));
       }
+
+      if (signal?.aborted) {
+        onEvent("loop_end", { motivo: "cancelado", iteracoes: iter });
+        return { iterations: iter, reason: "cancelado", messages };
+      }
+
       continue;
     }
 

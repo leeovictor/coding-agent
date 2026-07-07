@@ -58,11 +58,12 @@ function buildHeaders(apiKey) {
   };
 }
 
-async function doFetch(body, apiKey) {
+async function doFetch(body, apiKey, signal) {
   const res = await fetch(CHAT_ENDPOINT, {
     method: "POST",
     headers: buildHeaders(apiKey),
     body: JSON.stringify(body),
+    signal,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -90,12 +91,12 @@ export async function listModels() {
   }));
 }
 
-export async function* callApiStream(messages, tools) {
+export async function* callApiStream(messages, tools, signal) {
   const API_KEY = getApiKey();
   if (!API_KEY) throw new Error("OPENROUTER_API_KEY não configurada.");
 
   const body = buildBody(messages, tools, true);
-  const res = await doFetch(body, API_KEY);
+  const res = await doFetch(body, API_KEY, signal);
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -124,15 +125,15 @@ export async function* callApiStream(messages, tools) {
   }
 }
 
-export async function callApi(messages, tools, stream = false) {
+export async function callApi(messages, tools, stream = false, signal) {
   const API_KEY = getApiKey();
   if (!API_KEY) throw new Error("OPENROUTER_API_KEY não configurada.");
 
   if (stream) {
-    return { [Symbol.asyncIterator]() { return callApiStream(messages, tools); } };
+    return { [Symbol.asyncIterator]() { return callApiStream(messages, tools, signal); } };
   }
 
   const body = buildBody(messages, tools, false);
-  const res = await doFetch(body, API_KEY);
+  const res = await doFetch(body, API_KEY, signal);
   return res.json();
 }

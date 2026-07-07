@@ -149,6 +149,7 @@ export function formatFinal(content) {
 
 export function formatLoopEnd({ motivo, iteracoes }) {
   if (motivo === "concluido") return "";
+  if (motivo === "cancelado") return "";
   if (motivo === "limite_atingido") return `[AVISO: loop encerrado por limite de itera\u00e7\u00f5es (${iteracoes})]`;
   return `[loop encerrado: ${motivo}]`;
 }
@@ -179,7 +180,7 @@ export function formatBashOutput({ resultado, duration_ms }) {
   return `${header}\n${body}\n${footer}`;
 }
 
-export function createConsoleEventHandler({ log = console.log, stdout = process.stdout, stdin } = {}) {
+export function createConsoleEventHandler({ log = console.log, stdout = process.stdout, stdin, onCancel } = {}) {
   let reasoningActive = false;
   let contentStreamed = false;
   let thinkingActive = false;
@@ -194,6 +195,8 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
   let previousRawMode = false;
   let reasoningStart = null;
   let spinnerLineBlank = false;
+  let escPending = false;
+  let escTimer = null;
 
   const markdownWriter = createMarkdownWriter({ stdout });
 
@@ -254,10 +257,50 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     }
   }
 
+  function clearEscHint() {
+    if (escTimer) {
+      clearTimeout(escTimer);
+      escTimer = null;
+    }
+    if (escPending) {
+      escPending = false;
+      stdout.write(`\r\x1b[2K\r${RESET}`);
+      spinnerLineBlank = true;
+      if (thinkingActive && !thinkingTimer) {
+        thinkingTimer = setInterval(() => {
+          frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
+          stdout.write(`\r\x1b[2K${ORANGE}${SPINNER_FRAMES[frameIdx]}${thinkingLabel ? " " + thinkingLabel : ""}${RESET}`);
+        }, 80);
+      }
+    }
+  }
+
   function onKeypress(str, key) {
     if (key.name === "r") {
+      if (escPending) clearEscHint();
       revealReasoning();
+    } else if (key.name === "escape") {
+      if (onCancel) {
+        if (escPending) {
+          clearEscHint();
+          onCancel();
+          return;
+        }
+        if (thinkingTimer) {
+          clearInterval(thinkingTimer);
+          thinkingTimer = null;
+        }
+        escPending = true;
+        beginGroup("escHint");
+        stdout.write(`${GRAY}Pressione ESC novamente para cancelar${RESET}`);
+        spinnerLineBlank = false;
+        escTimer = setTimeout(clearEscHint, 2000);
+      }
     } else if (key.ctrl && key.name === "c") {
+      if (onCancel) {
+        onCancel();
+        return;
+      }
       markdownWriter.flush();
       detachInput();
       clearThinking();

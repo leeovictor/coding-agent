@@ -178,7 +178,12 @@ export async function runRepl() {
     if (!trimmed) continue;
 
     messages.push({ role: "user", content: trimmed });
-    const consoleHandler = createConsoleEventHandler({ stdin: process.stdin });
+
+    const abortCtrl = new AbortController();
+    const consoleHandler = createConsoleEventHandler({
+      stdin: process.stdin,
+      onCancel: () => abortCtrl.abort(),
+    });
     confirmCtx.pauseInput = () => consoleHandler.pauseInput();
     confirmCtx.resumeInput = () => consoleHandler.resumeInput();
 
@@ -191,16 +196,27 @@ export async function runRepl() {
         confirm,
         stream: true,
         agent: getCurrentAgent(),
+        signal: abortCtrl.signal,
         onEvent: (event, data) => {
           consoleHandler(event, data);
           if (event !== "token") logger.logEvent(event, data);
         },
       });
+      if (result.reason === "cancelado") {
+        console.log("\u21a9 Sess\u00e3o cancelada.\n");
+      }
       messages = result.messages;
     } catch (e) {
-      console.error(`\nErro: ${e.message}`);
+      if (e.name === "AbortError" && abortCtrl.signal.aborted) {
+        console.log("\u21a9 Sess\u00e3o cancelada.\n");
+      } else {
+        console.error(`\nErro: ${e.message}`);
+      }
     } finally {
       consoleHandler.dispose?.();
+      closeRl(rl);
+      rl = createRl();
+      question = makeQuestion(rl);
     }
   }
 

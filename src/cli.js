@@ -16,7 +16,11 @@ if (task) {
     process.exit(1);
   }
   const logger = createLogger("logs");
-  const consoleHandler = createConsoleEventHandler({ stdin: process.stdin });
+  const abortCtrl = new AbortController();
+  const consoleHandler = createConsoleEventHandler({
+    stdin: process.stdin,
+    onCancel: () => abortCtrl.abort(),
+  });
   const confirm = createConfirm({ formatConfirmation, consoleHandler });
 
   const cleanup = () => {
@@ -24,13 +28,7 @@ if (task) {
   };
 
   process.on("SIGINT", () => {
-    cleanup();
-    if (process.stdin.isTTY && typeof process.stdin.setRawMode === "function") {
-      process.stdin.setRawMode(false);
-    }
-    if (typeof process.stdin.resume === "function") process.stdin.resume();
-    console.log("\nInterrompido.");
-    process.exit(0);
+    abortCtrl.abort();
   });
 
   console.log(`Modelo: ${currentModel}`);
@@ -45,18 +43,27 @@ if (task) {
         executeTool: (name, args) => executeTool(name, args, undefined, { consoleHandler }),
       confirm,
       stream: true,
+      signal: abortCtrl.signal,
       onEvent: (event, data) => {
         consoleHandler(event, data);
         if (event !== "token") logger.logEvent(event, data);
       },
     });
 
-    console.log(`\nConclu\u00eddo em ${result.iterations} itera\u00e7\u00e3o(\u00f5es). Motivo: ${result.reason}`);
+    if (result.reason === "cancelado") {
+      console.log("\nInterrompido.");
+    } else {
+      console.log(`\nConclu\u00eddo em ${result.iterations} itera\u00e7\u00e3o(\u00f5es). Motivo: ${result.reason}`);
+    }
     console.log(`Logs completos em: ${logger.filePath}`);
   } catch (e) {
-    console.error("\nErro fatal:", e.message);
-    logger.logEvent("fatal_error", { message: e.message, stack: e.stack });
-    process.exit(1);
+    if (e.name === "AbortError" && abortCtrl.signal.aborted) {
+      console.log("\nInterrompido.");
+    } else {
+      console.error("\nErro fatal:", e.message);
+      logger.logEvent("fatal_error", { message: e.message, stack: e.stack });
+      process.exit(1);
+    }
   } finally {
     cleanup();
   }
