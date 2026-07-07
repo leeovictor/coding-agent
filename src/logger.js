@@ -30,6 +30,11 @@ function sanitize(data) {
 }
 
 export function createLogger(logDir, deps = {}) {
+  const disabled = deps.disabled ?? process.env.DUX_LOG_DISABLED === "1";
+  if (disabled) {
+    return { logEvent: () => {}, filePath: null };
+  }
+
   const now = deps.now ?? (() => new Date());
   const errorHandler = deps.errorHandler ?? ((e) => console.error("logger error:", e.message));
 

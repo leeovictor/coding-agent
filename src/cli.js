@@ -43,7 +43,7 @@ if (task) {
       stream: true,
       onEvent: (event, data) => {
         consoleHandler(event, data);
-        logger.logEvent(event, data);
+        if (event !== "token") logger.logEvent(event, data);
       },
     });
 
@@ -59,6 +59,14 @@ if (task) {
 
   process.exit(0);
 } else {
-  const { runRepl } = await import("./repl.js");
-  await runRepl();
+  (async () => {
+    try {
+      const { runRepl } = await import("./repl.js");
+      await runRepl();
+      process.exit(0);
+    } catch (e) {
+      console.error(e.message);
+      process.exit(1);
+    }
+  })();
 }

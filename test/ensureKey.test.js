@@ -40,14 +40,11 @@ describe("ensureApiKey", () => {
     expect(mockSetApiKey).toHaveBeenCalledWith("sk-or-v1-new-key");
   });
 
-  it("chama process.exit se usuário não fornecer chave", async () => {
+  it("lança erro se usuário não fornecer chave", async () => {
     process.stdin.isTTY = true;
     mockGetApiKey.mockReturnValue(null);
     mockPromptApiKey.mockResolvedValue(null);
-    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {});
     const { ensureApiKey } = await import("../src/ensureKey.js");
-    await ensureApiKey();
-    expect(exitSpy).toHaveBeenCalledWith(1);
-    exitSpy.mockRestore();
+    await expect(ensureApiKey()).rejects.toThrow(/API Key/);
   });
 });

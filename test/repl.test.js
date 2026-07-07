@@ -38,6 +38,9 @@ function makeMockRl(answers) {
     }),
     close: vi.fn(),
     on: vi.fn(),
+    once: vi.fn((event, cb) => {
+      rl.on(event, cb);
+    }),
     removeAllListeners: vi.fn(),
     removeListener: vi.fn(),
   };

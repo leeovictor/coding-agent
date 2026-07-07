@@ -10,26 +10,30 @@ import { selectEffort } from "./commands/effort.js";
 import { promptApiKey } from "./commands/apikey.js";
 import { ensureApiKey } from "./ensureKey.js";
 
+const CLOSED = Symbol("closed");
+
 function makeQuestion(rl) {
-  return (query) => new Promise((resolve) => rl.question(query, resolve));
+  return (query) => Promise.race([
+    new Promise((resolve) => rl.question(query, resolve)),
+    new Promise((resolve) => rl.once("close", () => resolve(CLOSED))),
+  ]);
 }
 
 function createRl() {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  rl.on("close", () => {
-    console.log("\nAté mais!");
-    process.exit(0);
-  });
-  return rl;
+  return createInterface({ input: process.stdin, output: process.stdout });
 }
 
 function closeRl(rl) {
-  rl?.removeAllListeners("close");
   rl?.close();
 }
 
 export async function runRepl() {
-  await ensureApiKey();
+  try {
+    await ensureApiKey();
+  } catch (e) {
+    console.error(e.message);
+    return;
+  }
 
   const logger = createLogger("logs");
   let messages = [{ role: "system", content: SYSTEM_PROMPT }];
@@ -48,6 +52,7 @@ export async function runRepl() {
 
   while (true) {
     const line = await question("\x1b[34magent>\x1b[0m ");
+    if (line === CLOSED) break;
     const trimmed = line.trim();
 
     if (trimmed === "/exit") break;
@@ -125,7 +130,7 @@ export async function runRepl() {
         stream: true,
         onEvent: (event, data) => {
           consoleHandler(event, data);
-          logger.logEvent(event, data);
+          if (event !== "token") logger.logEvent(event, data);
         },
       });
       messages = result.messages;
@@ -136,5 +141,6 @@ export async function runRepl() {
     }
   }
 
+  console.log("\nAté mais!");
   closeRl(rl);
 }

@@ -91,7 +91,7 @@ describe("integração — fluxo completo mockado", () => {
 
   it("logger JSONL é gerado e contém eventos esperados", async () => {
     mockFetchQueue(textResponse("ok"));
-    const logger = createLogger(tmpDir);
+    const logger = createLogger(tmpDir, { disabled: false });
     await runAgent({
       task: "teste", tools: [], callApi, executeTool, maxIterations: 3,
       onEvent: (event, data) => logger.logEvent(event, data),

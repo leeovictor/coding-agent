@@ -307,7 +307,12 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         if (data.tool === "run_bash") {
           stdout.write(formatBashOutput(data) + "\n");
         } else if (data.tool === "read_file") {
-          stdout.write(`${GRAY}=> Read ${data.args?.path ?? "?"}${RESET}\n`);
+          const args = data.args ?? {};
+          const parts = [];
+          if (args.offset != null) parts.push(`offset=${args.offset}`);
+          if (args.limit != null) parts.push(`limit=${args.limit}`);
+          const extra = parts.length > 0 ? ` [${parts.join(" ")}]` : "";
+          stdout.write(`${GRAY}=> Read ${args.path ?? "?"}${extra}${RESET}\n`);
         } else if (data.tool === "grep") {
           const count = countMatches(data.resultado);
           stdout.write(`${GRAY}* Grep "${data.args?.pattern ?? "?"}" in ${data.args?.path ?? "."} (${count} matches)${RESET}\n`);

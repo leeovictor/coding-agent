@@ -5,10 +5,11 @@ export async function ensureApiKey() {
   if (getApiKey()) return;
 
   if (!process.stdin.isTTY) {
-    console.error("Nenhuma API Key configurada.");
-    console.error("Execute sem argumentos para o modo interativo e configure via /api-key.");
-    console.error("Ou defina OPENROUTER_API_KEY como variável de ambiente.");
-    process.exit(1);
+    throw new Error(
+      "Nenhuma API Key configurada.\n" +
+      "Execute sem argumentos para o modo interativo e configure via /api-key.\n" +
+      "Ou defina OPENROUTER_API_KEY como variável de ambiente."
+    );
   }
 
   console.log("Bem-vindo ao dux!");
@@ -17,8 +18,7 @@ export async function ensureApiKey() {
 
   const key = await promptApiKey();
   if (!key) {
-    console.log("Você pode configurar a chave depois usando o comando /api-key.");
-    process.exit(1);
+    throw new Error("Nenhuma API Key fornecida. Use /api-key no REPL para configurar.");
   }
 
   setApiKey(key);
