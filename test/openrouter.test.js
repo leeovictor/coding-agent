@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("../src/env.js", () => ({
-  loadEnv: () => ({}),
+const mockSaveConfig = vi.hoisted(() => vi.fn());
+
+vi.mock("../src/config.js", () => ({
+  loadConfig: () => ({}),
+  saveConfig: mockSaveConfig,
 }));
 
-import { callApi, callApiStream, setModel, listModels, currentModel } from "../src/openrouter.js";
+import { callApi, callApiStream, setModel, listModels, currentModel, currentReasoningEffort, setApiKey, getApiKey } from "../src/openrouter.js";
 
 const FAKE_KEY = "sk-or-v1-test123";
 
@@ -174,6 +177,7 @@ describe("setModel / currentModel", () => {
 
   beforeEach(() => {
     initialModel = currentModel;
+    mockSaveConfig.mockClear();
   });
 
   afterEach(() => {
@@ -181,13 +185,13 @@ describe("setModel / currentModel", () => {
   });
 
   it("currentModel tem valor default", () => {
-    expect(typeof currentModel).toBe("string");
-    expect(currentModel.length).toBeGreaterThan(0);
+    expect(currentModel).toBe("deepseek/deepseek-v4-flash");
   });
 
-  it("setModel altera currentModel", () => {
+  it("setModel altera currentModel e persiste", () => {
     setModel("novo/modelo");
     expect(currentModel).toBe("novo/modelo");
+    expect(mockSaveConfig).toHaveBeenCalledWith({ model: "novo/modelo" });
   });
 
   it("setModel é redefinido via afterEach", () => {
@@ -247,5 +251,38 @@ describe("listModels", () => {
       "https://openrouter.ai/api/v1/models",
       expect.objectContaining({}),
     );
+  });
+});
+
+describe("setApiKey / getApiKey", () => {
+  beforeEach(() => {
+    delete process.env.OPENROUTER_API_KEY;
+    mockSaveConfig.mockClear();
+  });
+
+  afterEach(() => {
+    delete process.env.OPENROUTER_API_KEY;
+  });
+
+  it("getApiKey retorna undefined se nenhuma chave configurada", () => {
+    expect(getApiKey()).toBeUndefined();
+  });
+
+  it("setApiKey persiste chave e define defaults", () => {
+    setApiKey("sk-or-v1-test-key");
+    expect(currentModel).toBe("deepseek/deepseek-v4-flash");
+    expect(currentReasoningEffort).toBe("medium");
+    expect(mockSaveConfig).toHaveBeenCalledWith({
+      apiKey: "sk-or-v1-test-key",
+      model: "deepseek/deepseek-v4-flash",
+      reasoningEffort: "medium",
+    });
+    expect(getApiKey()).toBe("sk-or-v1-test-key");
+  });
+
+  it("getApiKey prioriza process.env sobre config", () => {
+    setApiKey("sk-or-v1-config-key");
+    process.env.OPENROUTER_API_KEY = "sk-or-v1-env-key";
+    expect(getApiKey()).toBe("sk-or-v1-env-key");
   });
 });

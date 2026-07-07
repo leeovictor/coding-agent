@@ -1,23 +1,33 @@
-import { loadEnv } from "./env.js";
+import { loadConfig, saveConfig } from "./config.js";
 
-const env = loadEnv();
+let _config = loadConfig();
 
-export let currentModel =
-  env.OPENROUTER_MODEL || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4.5";
+export let currentModel = _config.model || "deepseek/deepseek-v4-flash";
+export let currentReasoningEffort = _config.reasoningEffort ?? null;
 
 export function setModel(model) {
   currentModel = model;
+  _config.model = model;
+  saveConfig({ model });
 }
-
-export let currentReasoningEffort =
-  env.OPENROUTER_REASONING_EFFORT || null;
 
 export function setReasoningEffort(effort) {
   currentReasoningEffort = effort || null;
+  _config.reasoningEffort = currentReasoningEffort;
+  saveConfig({ reasoningEffort: currentReasoningEffort });
 }
 
 export function getApiKey() {
-  return process.env.OPENROUTER_API_KEY || env.OPENROUTER_API_KEY;
+  return process.env.OPENROUTER_API_KEY || _config.apiKey;
+}
+
+export function setApiKey(key) {
+  _config.apiKey = key;
+  _config.model = "deepseek/deepseek-v4-flash";
+  _config.reasoningEffort = "medium";
+  currentModel = _config.model;
+  currentReasoningEffort = _config.reasoningEffort;
+  saveConfig({ apiKey: key, model: _config.model, reasoningEffort: _config.reasoningEffort });
 }
 
 const CHAT_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -44,7 +54,7 @@ function buildHeaders(apiKey) {
     "Authorization": `Bearer ${apiKey}`,
     "Content-Type": "application/json",
     "HTTP-Referer": "https://localhost",
-    "X-Title": "cli-agent-study",
+    "X-Title": "dux",
   };
 }
 

@@ -17,6 +17,16 @@ vi.mock("../src/commands/models.js", () => ({
   selectModel: mockSelectModel,
 }));
 
+const mockPromptApiKey = vi.hoisted(() => vi.fn());
+vi.mock("../src/commands/apikey.js", () => ({
+  promptApiKey: mockPromptApiKey,
+}));
+
+const mockEnsureApiKey = vi.hoisted(() => vi.fn());
+vi.mock("../src/ensureKey.js", () => ({
+  ensureApiKey: mockEnsureApiKey,
+}));
+
 function makeMockRl(answers) {
   let idx = 0;
   const rl = {
@@ -28,6 +38,8 @@ function makeMockRl(answers) {
     }),
     close: vi.fn(),
     on: vi.fn(),
+    removeAllListeners: vi.fn(),
+    removeListener: vi.fn(),
   };
   return rl;
 }
@@ -37,6 +49,8 @@ describe("runRepl", () => {
 
   beforeEach(() => {
     vi.stubGlobal("console", { clear: vi.fn(), log: vi.fn(), error: vi.fn() });
+    mockEnsureApiKey.mockResolvedValue();
+    mockPromptApiKey.mockResolvedValue("sk-or-v1-new-key");
   });
 
   afterEach(() => {
@@ -130,5 +144,21 @@ describe("runRepl", () => {
     const { runRepl } = await import("../src/repl.js");
     await runRepl();
     expect(mockRunAgent).not.toHaveBeenCalled();
+  });
+
+  it("/api-key chama promptApiKey", async () => {
+    mockRl = makeMockRl(["/api-key", "/exit"]);
+    createInterface.mockReturnValue(mockRl);
+    const { runRepl } = await import("../src/repl.js");
+    await runRepl();
+    expect(mockPromptApiKey).toHaveBeenCalledTimes(1);
+  });
+
+  it("chama ensureApiKey na inicialização", async () => {
+    mockRl = makeMockRl(["/exit"]);
+    createInterface.mockReturnValue(mockRl);
+    const { runRepl } = await import("../src/repl.js");
+    await runRepl();
+    expect(mockEnsureApiKey).toHaveBeenCalledTimes(1);
   });
 });

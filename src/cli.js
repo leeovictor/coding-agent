@@ -4,14 +4,30 @@ import { createLogger } from "./logger.js";
 import { createConsoleEventHandler, formatConfirmation } from "./format.js";
 import { createConfirm } from "./confirm.js";
 import { getToolSchema, executeTool } from "./tools/index.js";
-import { callApi, currentModel, currentReasoningEffort } from "./openrouter.js";
+import { callApi, currentModel, currentReasoningEffort, getApiKey } from "./openrouter.js";
 
 const task = process.argv[2];
 
 if (task) {
+  if (!getApiKey()) {
+    console.error("Nenhuma API Key configurada.");
+    console.error("Execute sem argumentos para entrar no modo interativo e configurar via /api-key.");
+    console.error("Ou defina OPENROUTER_API_KEY como variável de ambiente.");
+    process.exit(1);
+  }
   const logger = createLogger("logs");
   const consoleHandler = createConsoleEventHandler({ stdin: process.stdin });
   const confirm = createConfirm({ formatConfirmation });
+
+  const cleanup = () => {
+    consoleHandler.dispose?.();
+  };
+
+  process.on("SIGINT", () => {
+    cleanup();
+    console.log("\nInterrompido.");
+    process.exit(0);
+  });
 
   console.log(`Modelo: ${currentModel}`);
   if (currentReasoningEffort) console.log(`Reasoning effort: ${currentReasoningEffort}`);
@@ -38,7 +54,7 @@ if (task) {
     logger.logEvent("fatal_error", { message: e.message, stack: e.stack });
     process.exit(1);
   } finally {
-    consoleHandler.dispose?.();
+    cleanup();
   }
 
   process.exit(0);

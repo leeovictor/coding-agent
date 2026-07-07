@@ -613,7 +613,7 @@ describe("createConsoleEventHandler", () => {
     });
     handler("request", { iteracao: 1 });
     stdin.emit("keypress", null, { ctrl: true, name: "c" });
-    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(exitSpy).toHaveBeenCalledWith(0);
     exitSpy.mockRestore();
   });
 });

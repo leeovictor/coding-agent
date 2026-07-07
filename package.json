@@ -1,9 +1,9 @@
 {
-  "name": "cli-agent",
+  "name": "dux",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "cli-agent": "./src/cli.js"
+    "dux": "./src/cli.js"
   },
   "scripts": {
     "test": "vitest run --exclude test/integration.test.js",

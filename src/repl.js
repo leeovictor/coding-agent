@@ -7,15 +7,33 @@ import { getToolSchema, executeTool } from "./tools/index.js";
 import { callApi, currentModel, currentReasoningEffort } from "./openrouter.js";
 import { selectModel } from "./commands/models.js";
 import { selectEffort } from "./commands/effort.js";
+import { promptApiKey } from "./commands/apikey.js";
+import { ensureApiKey } from "./ensureKey.js";
 
 function makeQuestion(rl) {
   return (query) => new Promise((resolve) => rl.question(query, resolve));
 }
 
+function createRl() {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  rl.on("close", () => {
+    console.log("\nAté mais!");
+    process.exit(0);
+  });
+  return rl;
+}
+
+function closeRl(rl) {
+  rl?.removeAllListeners("close");
+  rl?.close();
+}
+
 export async function runRepl() {
+  await ensureApiKey();
+
   const logger = createLogger("logs");
   let messages = [{ role: "system", content: SYSTEM_PROMPT }];
-  let rl = createInterface({ input: process.stdin, output: process.stdout });
+  let rl = createRl();
   let question = makeQuestion(rl);
 
   const confirm = createConfirm({
@@ -41,12 +59,12 @@ export async function runRepl() {
     }
 
     if (trimmed === "/help") {
-      console.log("Comandos: /exit, /clear, /help, /models, /effort");
+      console.log("Comandos: /exit, /clear, /help, /models, /effort, /api-key");
       continue;
     }
 
     if (trimmed === "/effort") {
-      rl.close();
+      closeRl(rl);
       try {
         const selected = await selectEffort();
         console.log(`\nReasoning effort alterado para: ${selected || "nenhum"}\n`);
@@ -55,13 +73,13 @@ export async function runRepl() {
           console.error(`\nErro ao alterar effort: ${e.message}\n`);
         }
       }
-      rl = createInterface({ input: process.stdin, output: process.stdout });
+      rl = createRl();
       question = makeQuestion(rl);
       continue;
     }
 
     if (trimmed === "/models") {
-      rl.close();
+      closeRl(rl);
       try {
         const selected = await selectModel();
         console.log(`\nModelo alterado para: ${selected}\n`);
@@ -70,7 +88,24 @@ export async function runRepl() {
           console.error(`\nErro ao listar modelos: ${e.message}\n`);
         }
       }
-      rl = createInterface({ input: process.stdin, output: process.stdout });
+      rl = createRl();
+      question = makeQuestion(rl);
+      continue;
+    }
+
+    if (trimmed === "/api-key") {
+      closeRl(rl);
+      try {
+        const key = await promptApiKey();
+        if (key) {
+          console.log(`\nAPI Key configurada: ${key.slice(0, 12)}...${key.slice(-4)}\n`);
+        }
+      } catch (e) {
+        if (e.message !== "User force closed the prompt" && !e.message?.includes("canceled")) {
+          console.error(`\nErro ao configurar API Key: ${e.message}\n`);
+        }
+      }
+      rl = createRl();
       question = makeQuestion(rl);
       continue;
     }
@@ -101,5 +136,5 @@ export async function runRepl() {
     }
   }
 
-  rl.close();
+  closeRl(rl);
 }

@@ -159,7 +159,11 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     if (key.name === "r") {
       revealReasoning();
     } else if (key.ctrl && key.name === "c") {
-      process.exit(1);
+      markdownWriter.flush();
+      detachInput();
+      clearThinking();
+      stdout.write("\n");
+      process.exit(0);
     }
   }
 
