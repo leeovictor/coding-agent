@@ -166,8 +166,8 @@ const DIFF_WIDTH = 60;
 export function formatBashOutput({ resultado, duration_ms }) {
   const text = String(resultado ?? "");
   const isError = text.startsWith("ERRO");
-  const borderColor = isError ? RED : GRAY;
-  const contentColor = isError ? RED : "";
+  const borderColor = GRAY;
+  const contentColor = "";
   const label = isError ? "output (error)" : "output";
   const headerText = `${label} (${duration_ms ?? "?"}ms)`;
   const WIDTH = 60;
@@ -191,6 +191,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
   let reasoningHintShown = false;
   let thinkingLabel = "Pensando...";
   let inputAttached = false;
+  let previousRawMode = false;
   let reasoningStart = null;
   let spinnerLineBlank = false;
 
@@ -269,6 +270,7 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     if (!stdin || !stdin.isTTY || inputAttached) return;
     inputAttached = true;
     emitKeypressEvents(stdin);
+    previousRawMode = stdin.isRaw ?? false;
     stdin.setRawMode(true);
     stdin.on("keypress", onKeypress);
   }
@@ -277,6 +279,23 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
     if (!inputAttached) return;
     inputAttached = false;
     stdin.removeListener("keypress", onKeypress);
+    if (typeof stdin.setRawMode === "function") {
+      stdin.setRawMode(previousRawMode);
+    }
+    if (typeof stdin.resume === "function") stdin.resume();
+  }
+
+  function pauseInput() {
+    if (!inputAttached) return;
+    stdin.removeListener("keypress", onKeypress);
+    if (typeof stdin.setRawMode === "function") stdin.setRawMode(false);
+  }
+
+  function resumeInput() {
+    if (!inputAttached) return;
+    if (typeof stdin.setRawMode === "function") stdin.setRawMode(true);
+    stdin.on("keypress", onKeypress);
+    if (typeof stdin.resume === "function") stdin.resume();
   }
 
   function flushReasoning() {
@@ -482,6 +501,9 @@ export function createConsoleEventHandler({ log = console.log, stdout = process.
         break;
     }
   }
+
+  handler.pauseInput = pauseInput;
+  handler.resumeInput = resumeInput;
 
   handler.dispose = function dispose() {
     markdownWriter.flush();

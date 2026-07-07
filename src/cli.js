@@ -17,7 +17,7 @@ if (task) {
   }
   const logger = createLogger("logs");
   const consoleHandler = createConsoleEventHandler({ stdin: process.stdin });
-  const confirm = createConfirm({ formatConfirmation });
+  const confirm = createConfirm({ formatConfirmation, consoleHandler });
 
   const cleanup = () => {
     consoleHandler.dispose?.();
@@ -25,6 +25,10 @@ if (task) {
 
   process.on("SIGINT", () => {
     cleanup();
+    if (process.stdin.isTTY && typeof process.stdin.setRawMode === "function") {
+      process.stdin.setRawMode(false);
+    }
+    if (typeof process.stdin.resume === "function") process.stdin.resume();
     console.log("\nInterrompido.");
     process.exit(0);
   });
@@ -38,7 +42,7 @@ if (task) {
       task,
       tools: getToolSchema(),
       callApi,
-      executeTool,
+        executeTool: (name, args) => executeTool(name, args, undefined, { consoleHandler }),
       confirm,
       stream: true,
       onEvent: (event, data) => {

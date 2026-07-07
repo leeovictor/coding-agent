@@ -73,6 +73,99 @@ describe("question", () => {
       expect(result).toMatch(/ERRO/);
     });
 
+    it("pausa e retoma consoleHandler durante prompts do inquirer", async () => {
+      const pauseInput = vi.fn();
+      const resumeInput = vi.fn();
+      const consoleHandler = { pauseInput, resumeInput };
+
+      select.mockResolvedValue("React");
+
+      await execute({
+        questions: [{
+          header: "Framework",
+          question: "Qual framework?",
+          options: [{ label: "React", description: "UI" }],
+        }],
+      }, { consoleHandler });
+
+      expect(pauseInput).toHaveBeenCalledOnce();
+      expect(resumeInput).toHaveBeenCalledOnce();
+      const pauseOrder = pauseInput.mock.invocationCallOrder[0];
+      const resumeOrder = resumeInput.mock.invocationCallOrder[0];
+      expect(pauseOrder).toBeLessThan(resumeOrder);
+    });
+
+    it("pausa e retoma para cada pergunta individualmente", async () => {
+      const pauseInput = vi.fn();
+      const resumeInput = vi.fn();
+      const consoleHandler = { pauseInput, resumeInput };
+
+      select.mockResolvedValueOnce("A").mockResolvedValueOnce("B");
+
+      await execute({
+        questions: [
+          { header: "Q1", question: "?", options: [{ label: "A", description: "a" }] },
+          { header: "Q2", question: "?", options: [{ label: "B", description: "b" }] },
+        ],
+      }, { consoleHandler });
+
+      expect(pauseInput).toHaveBeenCalledTimes(2);
+      expect(resumeInput).toHaveBeenCalledTimes(2);
+    });
+
+    it("retoma mesmo quando prompt do inquirer lança exceção", async () => {
+      const pauseInput = vi.fn();
+      const resumeInput = vi.fn();
+      const consoleHandler = { pauseInput, resumeInput };
+
+      select.mockRejectedValue(new Error("User force closed the prompt"));
+
+      await expect(execute({
+        questions: [{
+          header: "Q",
+          question: "?",
+          options: [{ label: "A", description: "a" }],
+        }],
+      }, { consoleHandler })).rejects.toThrow("User force closed the prompt");
+
+      expect(pauseInput).toHaveBeenCalledOnce();
+      expect(resumeInput).toHaveBeenCalledOnce();
+    });
+
+    it("resumeInput é chamado após cada prompt (despausa stdin)", async () => {
+      const pauseInput = vi.fn();
+      const resumeInput = vi.fn();
+      const consoleHandler = { pauseInput, resumeInput };
+
+      select.mockResolvedValue("React");
+
+      await execute({
+        questions: [{
+          header: "Framework",
+          question: "Qual framework?",
+          options: [{ label: "React", description: "UI" }],
+        }],
+      }, { consoleHandler });
+
+      expect(resumeInput).toHaveBeenCalled();
+      const pauseOrder = pauseInput.mock.invocationCallOrder[0];
+      const resumeOrder = resumeInput.mock.invocationCallOrder[0];
+      expect(pauseOrder).toBeLessThan(resumeOrder);
+    });
+
+    it("funciona normalmente sem consoleHandler (backward compat)", async () => {
+      select.mockResolvedValue("React");
+      const result = await execute({
+        questions: [{
+          header: "Framework",
+          question: "Qual framework usar?",
+          options: [{ label: "React", description: "UI" }],
+        }],
+      });
+      const parsed = JSON.parse(result);
+      expect(parsed[0].answer).toBe("React");
+    });
+
     it("retorna erro se questions é vazio", async () => {
       const result = await execute({ questions: [] });
       expect(result).toMatch(/ERRO/);

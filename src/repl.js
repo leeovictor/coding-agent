@@ -44,6 +44,10 @@ function createRl() {
 
 function closeRl(rl) {
   rl?.close();
+  if (process.stdin.isTTY && typeof process.stdin.setRawMode === "function") {
+    process.stdin.setRawMode(false);
+  }
+  if (typeof process.stdin.resume === "function") process.stdin.resume();
 }
 
 function agentPrompt() {
@@ -64,7 +68,8 @@ export async function runRepl() {
   let rl = createRl();
   let question = makeQuestion(rl);
 
-  const confirm = createConfirm({ formatConfirmation, rl });
+  const confirmCtx = {};
+  const confirm = createConfirm({ formatConfirmation, consoleHandler: confirmCtx });
 
   console.log(`Modelo: ${currentModel}`);
   if (currentReasoningEffort) console.log(`Reasoning effort: ${currentReasoningEffort}`);
@@ -81,6 +86,7 @@ export async function runRepl() {
     if (trimmed === "/new") {
       console.clear();
       messages = [{ role: "system", content: SYSTEM_PROMPT }];
+      if (typeof process.stdin.resume === "function") process.stdin.resume();
       continue;
     }
 
@@ -173,13 +179,15 @@ export async function runRepl() {
 
     messages.push({ role: "user", content: trimmed });
     const consoleHandler = createConsoleEventHandler({ stdin: process.stdin });
+    confirmCtx.pauseInput = () => consoleHandler.pauseInput();
+    confirmCtx.resumeInput = () => consoleHandler.resumeInput();
 
     try {
       const result = await runAgent({
         messages,
         tools: getToolSchema(getCurrentAgentName()),
         callApi,
-        executeTool,
+        executeTool: (name, args) => executeTool(name, args, undefined, { consoleHandler }),
         confirm,
         stream: true,
         agent: getCurrentAgent(),

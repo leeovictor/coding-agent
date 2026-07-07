@@ -51,19 +51,21 @@ export function isToolAllowed(agentName, toolName) {
 /**
  * Executa uma tool pelo nome.
  * Se agentName for informado, verifica permissão antes de executar.
+ * Se context for informado, é passado como segundo argumento para tool.execute.
  * @param {string} name
  * @param {object} args
  * @param {string} [agentName]
+ * @param {object} [context]
  * @returns {string} resultado (sempre string, nunca lança)
  */
-export async function executeTool(name, args, agentName) {
+export async function executeTool(name, args, agentName, context) {
   const tool = toolRegistry[name];
   if (!tool) return `ERRO: tool '${name}' não existe.`;
   if (agentName && !isToolAllowed(agentName, name)) {
     return `Ferramenta bloqueada: o agente '${agentName}' não tem permissão para executar '${name}'.`;
   }
   try {
-    return await tool.execute(args ?? {});
+    return await tool.execute(args ?? {}, context ?? {});
   } catch (e) {
     return `ERRO inesperado em '${name}': ${e.message}`;
   }

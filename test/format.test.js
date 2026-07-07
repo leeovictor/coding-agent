@@ -110,9 +110,10 @@ describe("formatBashOutput", () => {
     expect(out).not.toContain("\x1b[31m");
   });
 
-  it("usa vermelho para erro", () => {
+  it("usa cinza (gray) para erro também", () => {
     const out = formatBashOutput({ resultado: "ERRO (exit 1):\n--- stderr ---\nbad", duration_ms: 5 });
-    expect(out).toContain("\x1b[31m");
+    expect(out).toContain("\x1b[90m");
+    expect(out).not.toContain("\x1b[31m");
     expect(out).toContain("output (error)");
   });
 
@@ -733,7 +734,7 @@ describe("createConsoleEventHandler", () => {
     expect(writes.length).toBe(depoisPrimeiro);
   });
 
-  it("dispose desanexa input (nao restaura setRawMode - readline precisa de raw)", () => {
+  it("dispose restaura setRawMode e remove listeners", () => {
     const stdin = new EventEmitter();
     stdin.isTTY = true;
     stdin.setRawMode = vi.fn();
@@ -744,9 +745,103 @@ describe("createConsoleEventHandler", () => {
     handler("request", { iteracao: 1 });
     expect(stdin.setRawMode).toHaveBeenCalledWith(true);
     handler.dispose();
-    expect(stdin.setRawMode).toHaveBeenCalledTimes(1);
-    expect(stdin.setRawMode).not.toHaveBeenCalledWith(false);
+    expect(stdin.setRawMode).toHaveBeenCalledWith(false);
+    expect(stdin.setRawMode).toHaveBeenCalledTimes(2);
     expect(stdin.listenerCount("keypress")).toBe(0);
+  });
+
+  it("pauseInput remove listener e desliga raw mode sem alterar inputAttached", () => {
+    const stdin = new EventEmitter();
+    stdin.isTTY = true;
+    stdin.setRawMode = vi.fn();
+    const handler = createConsoleEventHandler({
+      stdin,
+      stdout: { write: vi.fn() },
+    });
+    handler("request", { iteracao: 1 });
+    expect(stdin.listenerCount("keypress")).toBe(1);
+    handler.pauseInput();
+    expect(stdin.setRawMode).toHaveBeenCalledWith(false);
+    expect(stdin.listenerCount("keypress")).toBe(0);
+  });
+
+  it("resumeInput religa raw mode e reanexa listener", () => {
+    const stdin = new EventEmitter();
+    stdin.isTTY = true;
+    stdin.setRawMode = vi.fn();
+    const handler = createConsoleEventHandler({
+      stdin,
+      stdout: { write: vi.fn() },
+    });
+    handler("request", { iteracao: 1 });
+    handler.pauseInput();
+    handler.resumeInput();
+    expect(stdin.setRawMode).toHaveBeenCalledWith(true);
+    expect(stdin.listenerCount("keypress")).toBe(1);
+  });
+
+  it("keypress durante pause nao dispara onKeypress", () => {
+    const stdin = new EventEmitter();
+    stdin.isTTY = true;
+    stdin.setRawMode = vi.fn();
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      stdin,
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("request", { iteracao: 1 });
+    handler("token", { type: "reasoning", text: "oculto" });
+    handler.pauseInput();
+    stdin.emit("keypress", null, { name: "r" });
+    const output = writes.join("");
+    expect(output).not.toContain("oculto");
+  });
+
+  it("apos resumeInput, keypress funciona novamente", () => {
+    const stdin = new EventEmitter();
+    stdin.isTTY = true;
+    stdin.setRawMode = vi.fn();
+    const writes = [];
+    const handler = createConsoleEventHandler({
+      stdin,
+      stdout: { write: (s) => writes.push(s) },
+    });
+    handler("request", { iteracao: 1 });
+    handler("token", { type: "reasoning", text: "buffer" });
+    handler.pauseInput();
+    handler.resumeInput();
+    stdin.emit("keypress", null, { name: "r" });
+    const output = writes.join("");
+    expect(output).toContain("buffer");
+  });
+
+  it("resumeInput chama stdin.resume para despausar stream pausado pelo inquirer", () => {
+    const stdin = new EventEmitter();
+    stdin.isTTY = true;
+    stdin.setRawMode = vi.fn();
+    stdin.resume = vi.fn();
+    const handler = createConsoleEventHandler({
+      stdin,
+      stdout: { write: vi.fn() },
+    });
+    handler("request", { iteracao: 1 });
+    handler.pauseInput();
+    handler.resumeInput();
+    expect(stdin.resume).toHaveBeenCalled();
+  });
+
+  it("dispose chama stdin.resume para despausar stream", () => {
+    const stdin = new EventEmitter();
+    stdin.isTTY = true;
+    stdin.setRawMode = vi.fn();
+    stdin.resume = vi.fn();
+    const handler = createConsoleEventHandler({
+      stdin,
+      stdout: { write: vi.fn() },
+    });
+    handler("request", { iteracao: 1 });
+    handler.dispose();
+    expect(stdin.resume).toHaveBeenCalled();
   });
 
   it("Ctrl+C no keypress encerra processo", () => {

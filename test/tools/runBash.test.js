@@ -7,11 +7,11 @@ describe("runBash.execute", () => {
     expect(out).toMatch(/hello/);
   });
 
-  it("comando não permitido retorna erro", () => {
+  it("comando inexistente retorna erro com stderr do shell", () => {
     const out = execute({ command: "comando_que_nao_existe_xyz" });
     expect(out).toMatch(/ERRO/);
-    expect(out).toMatch(/Comando/);
-    expect(out).toMatch(/não está na lista/);
+    expect(out).toMatch(/exit 127/);
+    expect(out).toMatch(/not found/);
   });
 
   it("retorna erro para exit code não-zero com comando permitido", () => {

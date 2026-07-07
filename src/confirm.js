@@ -23,7 +23,7 @@ export function createConfirm(deps = {}) {
   const input = deps.input ?? null;
   const output = deps.output ?? console.log;
   const formatConfirmation = deps.formatConfirmation ?? null;
-  const rl = deps.rl ?? null;
+  const consoleHandler = deps.consoleHandler ?? null;
 
   function getMessage(toolName, args, iteracao) {
     if (formatConfirmation) {
@@ -35,14 +35,6 @@ export function createConfirm(deps = {}) {
   return async function confirm(toolName, args, iteracao) {
     const message = getMessage(toolName, args, iteracao);
 
-    if (rl) {
-      return new Promise((resolve) => {
-        rl.question(`${message} [y/N] `, (answer) => {
-          resolve(isYes(answer));
-        });
-      });
-    }
-
     if (input) {
       if (formatConfirmation) {
         output(message);
@@ -51,6 +43,11 @@ export function createConfirm(deps = {}) {
       return isYes(answer);
     }
 
-    return inquirerConfirm({ message }, { output: safeInquirerOutput() });
+    consoleHandler?.pauseInput?.();
+    try {
+      return await inquirerConfirm({ message }, { output: safeInquirerOutput() });
+    } finally {
+      consoleHandler?.resumeInput?.();
+    }
   };
 }

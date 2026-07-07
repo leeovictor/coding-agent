@@ -129,6 +129,11 @@ describe("tools registry", () => {
     const out = await executeTool("read_file", { path: "package.json" }, "build");
     expect(out).not.toMatch(/bloqueada/);
   });
+
+  it("executeTool passa context para tool.execute", async () => {
+    const out = await executeTool("read_file", { path: "package.json" }, undefined, { consoleHandler: "mock" });
+    expect(out).not.toMatch(/ERRO inesperado/);
+  });
 });
 
 describe("shouldConfirm", () => {

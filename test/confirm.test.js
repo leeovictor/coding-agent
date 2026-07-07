@@ -1,4 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
+
+vi.mock("@inquirer/prompts", () => ({
+  confirm: vi.fn(),
+}));
+
+import { confirm as inquirerConfirm } from "@inquirer/prompts";
 import { isYes, createConfirm } from "../src/confirm.js";
 
 describe("isYes", () => {
@@ -71,5 +77,49 @@ describe("createConfirm", () => {
   it("trata input null como 'não'", async () => {
     const confirm = createConfirm({ input: async () => null });
     expect(await confirm("x", {})).toBe(false);
+  });
+
+  it("usa inquirerConfirm quando nenhum input customizado é fornecido", async () => {
+    inquirerConfirm.mockResolvedValue(true);
+    const confirm = createConfirm({ formatConfirmation: () => "Executar?" });
+    const result = await confirm("run_bash", { command: "ls" }, 1);
+    expect(inquirerConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Executar?" }),
+      expect.any(Object),
+    );
+    expect(result).toBe(true);
+  });
+
+  it("pausa e retoma consoleHandler ao redor do inquirerConfirm", async () => {
+    inquirerConfirm.mockResolvedValue(true);
+    const pauseInput = vi.fn();
+    const resumeInput = vi.fn();
+    const consoleHandler = { pauseInput, resumeInput };
+    const confirm = createConfirm({ consoleHandler });
+    await confirm("run_bash", { command: "rm x" }, 1);
+    expect(pauseInput).toHaveBeenCalledOnce();
+    expect(resumeInput).toHaveBeenCalledOnce();
+    const pauseOrder = pauseInput.mock.invocationCallOrder[0];
+    const resumeOrder = resumeInput.mock.invocationCallOrder[0];
+    expect(pauseOrder).toBeLessThan(resumeOrder);
+  });
+
+  it("retoma consoleHandler mesmo se inquirerConfirm lançar exceção", async () => {
+    inquirerConfirm.mockRejectedValue(new Error("cancelado"));
+    const pauseInput = vi.fn();
+    const resumeInput = vi.fn();
+    const consoleHandler = { pauseInput, resumeInput };
+    const confirm = createConfirm({ consoleHandler });
+    await expect(confirm("run_bash", { command: "rm x" }, 1)).rejects.toThrow("cancelado");
+    expect(pauseInput).toHaveBeenCalledOnce();
+    expect(resumeInput).toHaveBeenCalledOnce();
+  });
+
+  it("funciona sem consoleHandler (backward compat)", async () => {
+    inquirerConfirm.mockResolvedValue(false);
+    const confirm = createConfirm();
+    const result = await confirm("run_bash", { command: "rm x" }, 1);
+    expect(inquirerConfirm).toHaveBeenCalled();
+    expect(result).toBe(false);
   });
 });

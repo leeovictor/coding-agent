@@ -49,13 +49,13 @@ export function summarize(args) {
   return `${questions.length} pergunta(s)`;
 }
 
-export async function execute({ questions = [] } = {}) {
-  if (!Array.isArray(questions) || questions.length === 0) {
+export async function execute(args = {}, { consoleHandler } = {}) {
+  if (!Array.isArray(args?.questions) || args.questions.length === 0) {
     return "ERRO: parâmetro 'questions' deve ser um array não vazio.";
   }
 
   const answers = [];
-  for (const q of questions) {
+  for (const q of args.questions) {
     const header = String(q.header ?? q.question ?? "");
     const question = String(q.question ?? "");
     const options = q.options ?? [];
@@ -73,28 +73,38 @@ export async function execute({ questions = [] } = {}) {
     }));
 
     if (isMultiple) {
-      const selected = await checkbox({
-        message: header,
-        choices,
-      });
-      answers.push({ header, question, answer: selected });
-    } else {
-      choices.push({
-        name: "Digitar resposta própria...",
-        value: "__custom__",
-        description: "Digite sua própria resposta em texto livre",
-      });
-      const selected = await select({
-        message: header,
-        choices,
-      });
-      if (selected === "__custom__") {
-        const customAnswer = await input({
-          message: question,
+      consoleHandler?.pauseInput?.();
+      try {
+        const selected = await checkbox({
+          message: header,
+          choices,
         });
-        answers.push({ header, question, answer: customAnswer });
-      } else {
         answers.push({ header, question, answer: selected });
+      } finally {
+        consoleHandler?.resumeInput?.();
+      }
+    } else {
+      consoleHandler?.pauseInput?.();
+      try {
+        choices.push({
+          name: "Digitar resposta própria...",
+          value: "__custom__",
+          description: "Digite sua própria resposta em texto livre",
+        });
+        const selected = await select({
+          message: header,
+          choices,
+        });
+        if (selected === "__custom__") {
+          const customAnswer = await input({
+            message: question,
+          });
+          answers.push({ header, question, answer: customAnswer });
+        } else {
+          answers.push({ header, question, answer: selected });
+        }
+      } finally {
+        consoleHandler?.resumeInput?.();
       }
     }
   }

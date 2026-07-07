@@ -129,6 +129,17 @@ export function createMarkdownWriter({ stdout }) {
     stdout.write(processLine(line) + "\n");
   }
 
+  function clearPending() {
+    if (pendingRaw <= 0) return;
+    const cols = stdout.columns || 80;
+    const visualLines = Math.max(1, Math.ceil(pendingRaw / cols));
+    stdout.write("\r\x1b[2K");
+    for (let i = 1; i < visualLines; i++) {
+      stdout.write("\x1b[1A\x1b[2K");
+    }
+    pendingRaw = 0;
+  }
+
   function push(text) {
     buffer += text;
     const idx = buffer.lastIndexOf("\n");
@@ -139,10 +150,7 @@ export function createMarkdownWriter({ stdout }) {
       }
       return;
     }
-    if (pendingRaw > 0) {
-      stdout.write("\r\x1b[2K");
-      pendingRaw = 0;
-    }
+    clearPending();
     const complete = buffer.slice(0, idx);
     buffer = buffer.slice(idx + 1);
     const lines = complete.split("\n");
@@ -156,10 +164,7 @@ export function createMarkdownWriter({ stdout }) {
   }
 
   function flush() {
-    if (pendingRaw > 0) {
-      stdout.write("\r\x1b[2K");
-      pendingRaw = 0;
-    }
+    clearPending();
     if (buffer) {
       flushLine(buffer);
       buffer = "";
