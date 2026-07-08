@@ -49,9 +49,59 @@ export class TextInput extends Widget {
     return 3;
   }
 
+  private isWordChar(ch: string): boolean {
+    return /\w/.test(ch);
+  }
+
+  private cursorPrevWord(): number {
+    let cursor = this._cursor;
+    while (cursor > 0 && !this.isWordChar(this._value[cursor - 1])) {
+      cursor--;
+    }
+    while (cursor > 0 && this.isWordChar(this._value[cursor - 1])) {
+      cursor--;
+    }
+    return cursor;
+  }
+
+  private cursorNextWord(): number {
+    let cursor = this._cursor;
+    const len = this._value.length;
+    while (cursor < len && this.isWordChar(this._value[cursor])) {
+      cursor++;
+    }
+    while (cursor < len && !this.isWordChar(this._value[cursor])) {
+      cursor++;
+    }
+    return cursor;
+  }
+
   onKeyEvent(event: KeyUIEvent): void {
     if (!this.focused) return;
     const key = event.keyEvent;
+
+    if (key.ctrl && (key.key === "w" || key.key === "backspace")) {
+      const start = this.cursorPrevWord();
+      this._value = this._value.slice(0, start) + this._value.slice(this._cursor);
+      this._cursor = start;
+      return;
+    }
+
+    if ((key.ctrl && key.key === "delete") || (key.meta && key.key === "d")) {
+      const end = this.cursorNextWord();
+      this._value = this._value.slice(0, this._cursor) + this._value.slice(end);
+      return;
+    }
+
+    if ((key.ctrl && key.key === "left") || (key.meta && key.key === "b")) {
+      this._cursor = this.cursorPrevWord();
+      return;
+    }
+
+    if ((key.ctrl && key.key === "right") || (key.meta && key.key === "f")) {
+      this._cursor = this.cursorNextWord();
+      return;
+    }
 
     if (key.key === "backspace") {
       if (this._cursor > 0) {

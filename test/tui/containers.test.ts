@@ -159,6 +159,152 @@ describe("Stack", () => {
   });
 });
 
+describe("VBox stacked layout", () => {
+  it("fixed-height children keep their size, flex children share remaining space", () => {
+    const vbox = new VBox({ x: 0, y: 0, width: 100, height: 60, layout: "stacked" });
+    const fixed = createWidget();
+    fixed.bounds.height = 10;
+    const flex = createWidget();
+    vbox.addChild(fixed);
+    vbox.addChild(flex);
+
+    const screen = new Screen({ width: 100, height: 60 });
+    vbox.renderFrame(screen);
+
+    expect(fixed.bounds).toEqual({ x: 0, y: 0, width: 100, height: 10 });
+    expect(flex.bounds).toEqual({ x: 0, y: 10, width: 100, height: 50 });
+  });
+
+  it("multiple fixed children: all keep their size, remaining space unused", () => {
+    const vbox = new VBox({ x: 0, y: 0, width: 100, height: 60, layout: "stacked" });
+    const c1 = createWidget();
+    c1.bounds.height = 10;
+    const c2 = createWidget();
+    c2.bounds.height = 20;
+    vbox.addChild(c1);
+    vbox.addChild(c2);
+
+    const screen = new Screen({ width: 100, height: 60 });
+    vbox.renderFrame(screen);
+
+    expect(c1.bounds).toEqual({ x: 0, y: 0, width: 100, height: 10 });
+    expect(c2.bounds).toEqual({ x: 0, y: 10, width: 100, height: 20 });
+  });
+
+  it("all children flexible: behave like uniform layout", () => {
+    const vbox = new VBox({ x: 0, y: 0, width: 100, height: 60, layout: "stacked" });
+    const c1 = createWidget();
+    const c2 = createWidget();
+    const c3 = createWidget();
+    vbox.addChild(c1);
+    vbox.addChild(c2);
+    vbox.addChild(c3);
+
+    const screen = new Screen({ width: 100, height: 60 });
+    vbox.renderFrame(screen);
+
+    expect(c1.bounds).toEqual({ x: 0, y: 0, width: 100, height: 20 });
+    expect(c2.bounds).toEqual({ x: 0, y: 20, width: 100, height: 20 });
+    expect(c3.bounds).toEqual({ x: 0, y: 40, width: 100, height: 20 });
+  });
+
+  it("not enough space for fixed children: flex children get 0", () => {
+    const vbox = new VBox({ x: 0, y: 0, width: 100, height: 5, layout: "stacked" });
+    const fixed = createWidget();
+    fixed.bounds.height = 10;
+    const flex = createWidget();
+    vbox.addChild(fixed);
+    vbox.addChild(flex);
+
+    const screen = new Screen({ width: 100, height: 5 });
+    vbox.renderFrame(screen);
+
+    expect(fixed.bounds).toEqual({ x: 0, y: 0, width: 100, height: 10 });
+    expect(flex.bounds).toEqual({ x: 0, y: 10, width: 100, height: 0 });
+  });
+
+  it("mixed fixed and multiple flex children", () => {
+    const vbox = new VBox({ x: 0, y: 0, width: 100, height: 100, layout: "stacked" });
+    const fixed = createWidget();
+    fixed.bounds.height = 20;
+    const flex1 = createWidget();
+    const flex2 = createWidget();
+    vbox.addChild(fixed);
+    vbox.addChild(flex1);
+    vbox.addChild(flex2);
+
+    const screen = new Screen({ width: 100, height: 100 });
+    vbox.renderFrame(screen);
+
+    expect(fixed.bounds).toEqual({ x: 0, y: 0, width: 100, height: 20 });
+    expect(flex1.bounds).toEqual({ x: 0, y: 20, width: 100, height: 40 });
+    expect(flex2.bounds).toEqual({ x: 0, y: 60, width: 100, height: 40 });
+  });
+
+  it("children are positioned sequentially at increasing y", () => {
+    const vbox = new VBox({ x: 0, y: 0, width: 100, height: 100, layout: "stacked" });
+    const c1 = createWidget();
+    c1.bounds.height = 15;
+    const c2 = createWidget();
+    c2.bounds.height = 25;
+    const c3 = createWidget();
+    vbox.addChild(c1);
+    vbox.addChild(c2);
+    vbox.addChild(c3);
+
+    const screen = new Screen({ width: 100, height: 100 });
+    vbox.renderFrame(screen);
+
+    expect(c1.bounds.y).toBe(0);
+    expect(c2.bounds.y).toBe(15);
+    expect(c3.bounds.y).toBe(40);
+  });
+
+  it("default layout is uniform when not specified", () => {
+    const vbox = new VBox({ x: 0, y: 0, width: 100, height: 60 });
+    expect(vbox.layout).toBe("uniform");
+  });
+});
+
+describe("HBox stacked layout", () => {
+  it("fixed-width children keep their size, flex children share remaining space", () => {
+    const hbox = new HBox({ x: 0, y: 0, width: 100, height: 40, layout: "stacked" });
+    const fixed = createWidget();
+    fixed.bounds.width = 20;
+    const flex = createWidget();
+    hbox.addChild(fixed);
+    hbox.addChild(flex);
+
+    const screen = new Screen({ width: 100, height: 40 });
+    hbox.renderFrame(screen);
+
+    expect(fixed.bounds).toEqual({ x: 0, y: 0, width: 20, height: 40 });
+    expect(flex.bounds).toEqual({ x: 20, y: 0, width: 80, height: 40 });
+  });
+
+  it("all children flexible: behave like uniform", () => {
+    const hbox = new HBox({ x: 0, y: 0, width: 90, height: 40, layout: "stacked" });
+    const c1 = createWidget();
+    const c2 = createWidget();
+    const c3 = createWidget();
+    hbox.addChild(c1);
+    hbox.addChild(c2);
+    hbox.addChild(c3);
+
+    const screen = new Screen({ width: 90, height: 40 });
+    hbox.renderFrame(screen);
+
+    expect(c1.bounds).toEqual({ x: 0, y: 0, width: 30, height: 40 });
+    expect(c2.bounds).toEqual({ x: 30, y: 0, width: 30, height: 40 });
+    expect(c3.bounds).toEqual({ x: 60, y: 0, width: 30, height: 40 });
+  });
+
+  it("default layout is uniform when not specified", () => {
+    const hbox = new HBox({ x: 0, y: 0, width: 100, height: 60 });
+    expect(hbox.layout).toBe("uniform");
+  });
+});
+
 describe("Common container behavior", () => {
   it("empty container does not throw", () => {
     const vbox = new VBox({ x: 0, y: 0, width: 100, height: 60 });

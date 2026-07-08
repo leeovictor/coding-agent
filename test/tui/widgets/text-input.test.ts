@@ -61,6 +61,106 @@ describe("TextInput", () => {
     expect(ti.value).toBe("ell");
   });
 
+  it("Ctrl+Left moves cursor to previous word", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hello world foo" });
+    ti.onKeyEvent(keyEvent({ key: "end" }));
+    ti.onKeyEvent(keyEvent({ key: "left", ctrl: true }));
+    expect(ti.value).toBe("hello world foo");
+    ti.onKeyEvent(keyEvent({ sequence: "X" }));
+    expect(ti.value).toBe("hello world Xfoo");
+  });
+
+  it("Ctrl+Right moves cursor to next word", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hello world" });
+    ti.onKeyEvent(keyEvent({ key: "home" }));
+    ti.onKeyEvent(keyEvent({ key: "right", ctrl: true }));
+    ti.onKeyEvent(keyEvent({ sequence: "X" }));
+    expect(ti.value).toBe("hello Xworld");
+  });
+
+  it("Ctrl+Backspace deletes previous word", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hello world" });
+    ti.onKeyEvent(keyEvent({ key: "backspace", ctrl: true }));
+    expect(ti.value).toBe("hello ");
+  });
+
+  it("Ctrl+Backspace from mid-word deletes to word start", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hello world" });
+    ti.onKeyEvent(keyEvent({ key: "left" }));
+    ti.onKeyEvent(keyEvent({ key: "left" }));
+    ti.onKeyEvent(keyEvent({ key: "left" }));
+    ti.onKeyEvent(keyEvent({ key: "left" }));
+    ti.onKeyEvent(keyEvent({ key: "backspace", ctrl: true }));
+    expect(ti.value).toBe("hello orld");
+  });
+
+  it("Ctrl+Delete deletes next word", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hello world" });
+    ti.onKeyEvent(keyEvent({ key: "home" }));
+    ti.onKeyEvent(keyEvent({ key: "delete", ctrl: true }));
+    expect(ti.value).toBe("world");
+  });
+
+  it("Ctrl+Left at start of text stays at 0", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hello" });
+    ti.onKeyEvent(keyEvent({ key: "home" }));
+    ti.onKeyEvent(keyEvent({ key: "left", ctrl: true }));
+    ti.onKeyEvent(keyEvent({ sequence: "X" }));
+    expect(ti.value).toBe("Xhello");
+  });
+
+  it("Ctrl+Right at end of text stays at end", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hello" });
+    ti.onKeyEvent(keyEvent({ key: "end" }));
+    ti.onKeyEvent(keyEvent({ key: "right", ctrl: true }));
+    ti.onKeyEvent(keyEvent({ sequence: "X" }));
+    expect(ti.value).toBe("helloX");
+  });
+
+  it("Ctrl+navigation with empty value does not crash", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20 });
+    expect(() => ti.onKeyEvent(keyEvent({ key: "left", ctrl: true }))).not.toThrow();
+    expect(() => ti.onKeyEvent(keyEvent({ key: "right", ctrl: true }))).not.toThrow();
+    expect(() => ti.onKeyEvent(keyEvent({ key: "backspace", ctrl: true }))).not.toThrow();
+    expect(() => ti.onKeyEvent(keyEvent({ key: "delete", ctrl: true }))).not.toThrow();
+  });
+
+  it("Ctrl+w deletes previous word (alternative to Ctrl+Backspace)", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hello world" });
+    ti.onKeyEvent(keyEvent({ key: "w", ctrl: true }));
+    expect(ti.value).toBe("hello ");
+  });
+
+  it("Alt+b moves cursor to previous word (alternative to Ctrl+Left)", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hello world foo" });
+    ti.onKeyEvent(keyEvent({ key: "end" }));
+    ti.onKeyEvent(keyEvent({ key: "b", meta: true }));
+    ti.onKeyEvent(keyEvent({ sequence: "X" }));
+    expect(ti.value).toBe("hello world Xfoo");
+  });
+
+  it("Alt+f moves cursor to next word (alternative to Ctrl+Right)", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hello world" });
+    ti.onKeyEvent(keyEvent({ key: "home" }));
+    ti.onKeyEvent(keyEvent({ key: "f", meta: true }));
+    ti.onKeyEvent(keyEvent({ sequence: "X" }));
+    expect(ti.value).toBe("hello Xworld");
+  });
+
+  it("Alt+d deletes next word (alternative to Ctrl+Delete)", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hello world" });
+    ti.onKeyEvent(keyEvent({ key: "home" }));
+    ti.onKeyEvent(keyEvent({ key: "d", meta: true }));
+    expect(ti.value).toBe("world");
+  });
+
+  it("Alt+meta navigation with empty value does not crash", () => {
+    const ti = new TextInput({ x: 0, y: 0, width: 20 });
+    expect(() => ti.onKeyEvent(keyEvent({ key: "b", meta: true }))).not.toThrow();
+    expect(() => ti.onKeyEvent(keyEvent({ key: "f", meta: true }))).not.toThrow();
+    expect(() => ti.onKeyEvent(keyEvent({ key: "d", meta: true }))).not.toThrow();
+  });
+
   it("onKeyEvent processes char input", () => {
     const ti = new TextInput({ x: 0, y: 0, width: 20, value: "hel" });
     ti.onKeyEvent(keyEvent({ sequence: "l" }));

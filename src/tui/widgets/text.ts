@@ -18,6 +18,7 @@ export class Text extends Widget {
     this.bounds = { x, y, width: 0, height: 0 };
     this._content = content;
     this._style = style ?? {};
+    this._syncBounds();
   }
 
   get content(): string {
@@ -30,6 +31,13 @@ export class Text extends Widget {
 
   setContent(text: string): void {
     this._content = text;
+    this._syncBounds();
+  }
+
+  private _syncBounds(): void {
+    const lines = this._content.split("\n");
+    this.bounds.height = this._content ? lines.length : 0;
+    this.bounds.width = lines.reduce((max, line) => Math.max(max, line.length), 0);
   }
 
   move(nx: number, ny: number): void {
