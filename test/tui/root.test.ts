@@ -39,17 +39,15 @@ describe("Root", () => {
       expect(spy).toHaveBeenCalled();
     });
 
-    it("calls clear and fill on screen", () => {
+    it("calls clear on screen", () => {
       const screen = new Screen({ width: 50, height: 30 });
       const root = new Root({ screen });
 
       const clearSpy = vi.spyOn(screen, "clear");
-      const fillSpy = vi.spyOn(screen, "fill");
 
       root.renderFrame();
 
       expect(clearSpy).toHaveBeenCalled();
-      expect(fillSpy).toHaveBeenCalled();
     });
 
     it("calls renderer.render if renderer is present", () => {

@@ -30,7 +30,6 @@ export class Root extends Widget {
 
   renderFrame(): void {
     this._screen.clear();
-    this._screen.fill(0, 0, this._screen.width, this._screen.height, {});
     super.renderFrame(this._screen);
     this._renderer?.render(this._screen);
   }
