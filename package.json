@@ -9,9 +9,13 @@
     "test": "vitest run --exclude test/integration.test.js",
     "test:watch": "vitest",
     "test:integration": "OPENROUTER_RUN_INTEGRATION=1 vitest run test/integration.test.js",
-    "dev": "node src/cli.js"
+    "dev": "node src/cli.js",
+    "dev:tui": "tsx src/tui/tui-demo/demo.ts"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.0",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },
   "dependencies": {
